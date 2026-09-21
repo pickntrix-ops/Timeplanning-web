@@ -82,6 +82,7 @@ fun TodayScreen(
     fun refresh() { refreshKey++ }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.surface,
         floatingActionButton = {
             FloatingActionButton(onClick = onAddTask) {
                 Text("+", style = MaterialTheme.typography.headlineSmall)
