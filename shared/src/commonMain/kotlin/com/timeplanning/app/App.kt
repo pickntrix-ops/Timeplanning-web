@@ -27,7 +27,12 @@ fun App() {
         var screen by remember { mutableStateOf<Screen>(Screen.SignIn) }
 
         LaunchedEffect(Unit) {
-            sessionToken = sessionStore.load()
+            // A token in the URL means the web OAuth redirect (see
+            // AuthController.callback) just completed — takes priority over
+            // whatever's already stored, and is itself then stored.
+            val urlToken = consumeOAuthTokenFromUrl()
+            sessionToken = urlToken ?: sessionStore.load()
+            if (urlToken != null) sessionStore.save(urlToken)
             loadedStoredSession = true
             if (sessionToken != null) screen = Screen.Today
         }

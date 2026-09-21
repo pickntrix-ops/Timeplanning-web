@@ -77,7 +77,7 @@ fun SignInScreen(apiClient: ApiClient, onSignedIn: (sessionToken: String) -> Uni
                     loading = true
                     error = null
                     scope.launch {
-                        runCatching { apiClient.fetchLoginUrl() }
+                        runCatching { apiClient.fetchLoginUrl(currentWebOrigin()) }
                             .onSuccess { openUrl(it) }
                             .onFailure { error = "Couldn't start sign-in: ${it.message}" }
                         loading = false

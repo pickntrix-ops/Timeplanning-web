@@ -53,8 +53,10 @@ class ApiClient {
         }
     }
 
-    suspend fun fetchLoginUrl(): String =
-        client.get("$BASE_URL/auth/google/login").body<LoginUrlResponse>().authUrl
+    suspend fun fetchLoginUrl(webOrigin: String? = null): String =
+        client.get("$BASE_URL/auth/google/login") {
+            webOrigin?.let { parameter("webOrigin", it) }
+        }.body<LoginUrlResponse>().authUrl
 
     /** Native sign-in front door — exchanges the server auth code from GoogleNativeSignIn for a session. */
     suspend fun exchangeNativeCode(code: String): SessionResponse =
