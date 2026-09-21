@@ -6,6 +6,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.parameter
@@ -121,6 +122,13 @@ class ApiClient {
 
     suspend fun createTaskCategory(sessionToken: String, request: CreateTaskCategoryRequest): TaskCategory =
         client.post("$BASE_URL/task-categories") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
+
+    suspend fun updateTaskCategory(sessionToken: String, categoryId: Long, request: UpdateTaskCategoryRequest): TaskCategory =
+        client.patch("$BASE_URL/task-categories/$categoryId") {
             header("Authorization", "Bearer $sessionToken")
             contentType(ContentType.Application.Json)
             setBody(request)

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,7 +35,7 @@ import androidx.compose.ui.unit.dp
 fun App() {
     val isWeb = remember { currentWebOrigin() != null }
 
-    MaterialTheme(colorScheme = if (isWeb) WebColorScheme else lightColorScheme()) {
+    MaterialTheme(colorScheme = if (isWeb) WebColorScheme else AppColorScheme) {
         val apiClient = remember { ApiClient() }
         val sessionStore = rememberSessionStore()
 

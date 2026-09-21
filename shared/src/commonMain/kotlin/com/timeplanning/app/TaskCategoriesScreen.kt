@@ -1,16 +1,20 @@
 package com.timeplanning.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -34,6 +38,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
@@ -129,6 +135,15 @@ fun TaskCategoriesScreen(apiClient: ApiClient, sessionToken: String, onBack: () 
                             refresh()
                         }
                     },
+                    onChangeColor = { hex ->
+                        busy = true
+                        scope.launch {
+                            runCatching { apiClient.updateTaskCategory(sessionToken, category.id, UpdateTaskCategoryRequest(color = hex)) }
+                                .onFailure { error = "Couldn't update colour: ${it.message}" }
+                            busy = false
+                            refresh()
+                        }
+                    },
                     onAddSubcategory = { request ->
                         busy = true
                         scope.launch {
@@ -164,6 +179,7 @@ private fun CategoryCard(
     busy: Boolean,
     onToggleExpanded: () -> Unit,
     onDeleteCategory: () -> Unit,
+    onChangeColor: (String) -> Unit,
     onAddSubcategory: (CreateTaskSubcategoryRequest) -> Unit,
     onDeleteSubcategory: (Long) -> Unit,
 ) {
@@ -176,15 +192,32 @@ private fun CategoryCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column {
-                    Text(category.name, style = MaterialTheme.typography.titleMedium)
-                    Text(categorySummary(category), style = MaterialTheme.typography.bodySmall)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(modifier = Modifier.size(14.dp).clip(CircleShape).background(category.displayColor.toColorOrNull() ?: Color.Gray))
+                    Column {
+                        Text(category.name, style = MaterialTheme.typography.titleMedium)
+                        Text(category.defaultRecurrenceBase.label(), style = MaterialTheme.typography.bodySmall)
+                    }
                 }
                 TextButton(onClick = onDeleteCategory, enabled = !busy) { Text("Delete") }
             }
 
+            val flags = buildList {
+                if (category.ordered) add("Ordered")
+                if (category.linksToPerson) add("Links to person")
+                if (category.linksToEvent) add("Links to event")
+            }
+            if (flags.isNotEmpty()) {
+                Row(modifier = Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    flags.forEach { FlagBadge(it) }
+                }
+            }
+
             if (expanded) {
                 Column(Modifier.padding(top = 8.dp)) {
+                    Text("Colour", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    ColorSwatchPicker(selected = category.displayColor, onSelect = onChangeColor, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
+
                     category.subcategories.forEach { sub ->
                         SubcategoryRow(sub, category, busy, onDelete = { onDeleteSubcategory(sub.id) })
                     }
@@ -206,14 +239,34 @@ private fun CategoryCard(
     }
 }
 
-private fun categorySummary(category: TaskCategory): String {
-    val flags = buildList {
-        if (category.ordered) add("ordered")
-        if (category.linksToPerson) add("links to person")
-        if (category.linksToEvent) add("links to event")
+@Composable
+private fun FlagBadge(label: String) {
+    Text(
+        label,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = Modifier
+            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(50))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
+}
+
+@Composable
+private fun ColorSwatchPicker(selected: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        CategoryPalette.forEach { hex ->
+            val color = hex.toColorOrNull() ?: Color.Gray
+            val isSelected = hex == selected
+            Box(
+                modifier = Modifier.size(28.dp).clip(CircleShape).background(color)
+                    .then(
+                        if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                        else Modifier,
+                    )
+                    .clickable { onSelect(hex) },
+            ) {}
+        }
     }
-    val flagText = if (flags.isEmpty()) "no defaults set" else flags.joinToString(", ")
-    return "${category.defaultRecurrenceBase.label()} · $flagText"
 }
 
 @Composable
@@ -227,17 +280,18 @@ private fun SubcategoryRow(sub: TaskSubcategory, category: TaskCategory, busy: B
             Text("${sub.name} (priority ${sub.priority})", style = MaterialTheme.typography.bodyMedium)
             TextButton(onClick = onDelete, enabled = !busy) { Text("Remove") }
         }
-        Text(
-            "Ordered: ${overrideLabel(sub.ordered, category.ordered)} · " +
-                "Person: ${overrideLabel(sub.linksToPerson, category.linksToPerson)} · " +
-                "Event: ${overrideLabel(sub.linksToEvent, category.linksToEvent)}",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        val resolvedFlags = buildList {
+            if (sub.ordered ?: category.ordered) add("Ordered")
+            if (sub.linksToPerson ?: category.linksToPerson) add("Links to person")
+            if (sub.linksToEvent ?: category.linksToEvent) add("Links to event")
+        }
+        if (resolvedFlags.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                resolvedFlags.forEach { FlagBadge(it) }
+            }
+        }
     }
 }
-
-private fun overrideLabel(override: Boolean?, categoryDefault: Boolean): String =
-    if (override == null) "inherit (${if (categoryDefault) "on" else "off"})" else if (override) "on" else "off"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -248,6 +302,7 @@ private fun AddCategoryForm(busy: Boolean, onAdd: (CreateTaskCategoryRequest) ->
     var ordered by remember { mutableStateOf(false) }
     var linksToPerson by remember { mutableStateOf(false) }
     var linksToEvent by remember { mutableStateOf(false) }
+    var color by remember { mutableStateOf(CategoryPalette.first()) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
@@ -256,6 +311,9 @@ private fun AddCategoryForm(busy: Boolean, onAdd: (CreateTaskCategoryRequest) ->
             label = { Text("Category name") },
             modifier = Modifier.fillMaxWidth(),
         )
+
+        Text("Colour", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        ColorSwatchPicker(selected = color, onSelect = { color = it })
 
         ExposedDropdownMenuBox(expanded = recurrenceMenuExpanded, onExpandedChange = { recurrenceMenuExpanded = it }) {
             OutlinedTextField(
@@ -279,7 +337,7 @@ private fun AddCategoryForm(busy: Boolean, onAdd: (CreateTaskCategoryRequest) ->
 
         Button(
             enabled = name.isNotBlank() && !busy,
-            onClick = { onAdd(CreateTaskCategoryRequest(name, recurrenceBase, ordered, linksToPerson, linksToEvent)) },
+            onClick = { onAdd(CreateTaskCategoryRequest(name, recurrenceBase, ordered, linksToPerson, linksToEvent, color)) },
         ) { Text("Add category") }
     }
 }
@@ -342,24 +400,9 @@ private fun TriStateRow(label: String, value: Boolean?, categoryDefault: Boolean
     Column(Modifier.padding(vertical = 4.dp)) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TriStateChip("Inherit (${if (categoryDefault) "on" else "off"})", value == null) { onChange(null) }
-            TriStateChip("On", value == true) { onChange(true) }
-            TriStateChip("Off", value == false) { onChange(false) }
+            SelectableChip("Inherit (${if (categoryDefault) "on" else "off"})", value == null) { onChange(null) }
+            SelectableChip("On", value == true) { onChange(true) }
+            SelectableChip("Off", value == false) { onChange(false) }
         }
     }
-}
-
-@Composable
-private fun TriStateChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val background = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-    val contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-    Text(
-        label,
-        color = contentColor,
-        style = MaterialTheme.typography.labelMedium,
-        modifier = Modifier
-            .background(background, RoundedCornerShape(50))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    )
 }

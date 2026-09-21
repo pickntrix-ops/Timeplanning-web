@@ -1,12 +1,17 @@
 package com.timeplanning.app
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -17,7 +22,6 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,10 +33,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
-private enum class CompletionBehavior { ONE_OFF, SCHEDULED, MANUAL }
+private enum class CompletionBehavior(val label: String) {
+    ONE_OFF("One-off"),
+    SCHEDULED("Repeats on a schedule"),
+    MANUAL("Repeats blank"),
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,7 +73,7 @@ fun AddTaskScreen(apiClient: ApiClient, sessionToken: String, onDone: () -> Unit
     var selectedSubcategory by remember { mutableStateOf<TaskSubcategory?>(null) }
     var subcategoryMenuExpanded by remember { mutableStateOf(false) }
     var durationMinutes by remember { mutableStateOf("30") }
-    var dueDate by remember { mutableStateOf("") }
+    var dueDate by remember { mutableStateOf<String?>(null) }
     var queuePosition by remember { mutableStateOf("") }
     var selectedPerson by remember { mutableStateOf<Person?>(null) }
     var personMenuExpanded by remember { mutableStateOf(false) }
@@ -90,211 +99,219 @@ fun AddTaskScreen(apiClient: ApiClient, sessionToken: String, onDone: () -> Unit
     val effectiveLinksToEvent = selectedSubcategory?.linksToEvent ?: selectedCategory?.linksToEvent ?: false
 
     Column(
-        modifier = Modifier.safeContentPadding().fillMaxSize().verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.safeContentPadding().fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Add task", style = MaterialTheme.typography.headlineSmall)
 
         if (loadingOptions) CircularProgressIndicator()
 
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text("Name") },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        ExposedDropdownMenuBox(expanded = categoryMenuExpanded, onExpandedChange = { categoryMenuExpanded = it }) {
+        FormSection("Basics") {
             OutlinedTextField(
-                value = selectedCategory?.name ?: "(choose a category)",
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Category") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                modifier = Modifier.fillMaxWidth(),
             )
-            ExposedDropdownMenu(expanded = categoryMenuExpanded, onDismissRequest = { categoryMenuExpanded = false }) {
-                categories.forEach { category ->
-                    DropdownMenuItem(text = { Text(category.name) }, onClick = {
-                        selectedCategory = category
-                        selectedSubcategory = null
-                        recurrenceBase = category.defaultRecurrenceBase
-                        categoryMenuExpanded = false
-                    })
-                }
-            }
-        }
 
-        val subcategories = selectedCategory?.subcategories.orEmpty()
-        if (subcategories.isNotEmpty()) {
-            ExposedDropdownMenuBox(expanded = subcategoryMenuExpanded, onExpandedChange = { subcategoryMenuExpanded = it }) {
+            ExposedDropdownMenuBox(expanded = categoryMenuExpanded, onExpandedChange = { categoryMenuExpanded = it }) {
                 OutlinedTextField(
-                    value = selectedSubcategory?.name ?: "(none)",
+                    value = selectedCategory?.name ?: "(choose a category)",
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Subcategory") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = subcategoryMenuExpanded) },
+                    label = { Text("Category") },
+                    leadingIcon = selectedCategory?.let { { CategoryDot(it.displayColor) } },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuExpanded) },
                     modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                 )
-                ExposedDropdownMenu(expanded = subcategoryMenuExpanded, onDismissRequest = { subcategoryMenuExpanded = false }) {
-                    subcategories.forEach { sub ->
-                        DropdownMenuItem(text = { Text(sub.name) }, onClick = {
-                            selectedSubcategory = sub
-                            subcategoryMenuExpanded = false
-                        })
+                ExposedDropdownMenu(expanded = categoryMenuExpanded, onDismissRequest = { categoryMenuExpanded = false }) {
+                    categories.forEach { category ->
+                        DropdownMenuItem(
+                            leadingIcon = { CategoryDot(category.displayColor) },
+                            text = { Text(category.name) },
+                            onClick = {
+                                selectedCategory = category
+                                selectedSubcategory = null
+                                recurrenceBase = category.defaultRecurrenceBase
+                                categoryMenuExpanded = false
+                            },
+                        )
                     }
                 }
             }
-        }
 
-        OutlinedTextField(
-            value = durationMinutes,
-            onValueChange = { durationMinutes = it.filter { c -> c.isDigit() } },
-            label = { Text("Duration (minutes)") },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        OutlinedTextField(
-            value = dueDate,
-            onValueChange = { dueDate = it },
-            label = { Text("Due date (YYYY-MM-DD, optional)") },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        if (effectiveOrdered) {
-            OutlinedTextField(
-                value = queuePosition,
-                onValueChange = { queuePosition = it.filter { c -> c.isDigit() } },
-                label = { Text("Order (optional — lower goes first)") },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        if (effectiveLinksToPerson) {
-            ExposedDropdownMenuBox(expanded = personMenuExpanded, onExpandedChange = { personMenuExpanded = it }) {
-                OutlinedTextField(
-                    value = selectedPerson?.name ?: "(none)",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Person") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = personMenuExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-                )
-                ExposedDropdownMenu(expanded = personMenuExpanded, onDismissRequest = { personMenuExpanded = false }) {
-                    people.forEach { person ->
-                        DropdownMenuItem(text = { Text(person.name) }, onClick = {
-                            selectedPerson = person
-                            personMenuExpanded = false
-                        })
-                    }
-                }
-            }
-        }
-
-        if (effectiveLinksToEvent) {
-            OutlinedTextField(
-                value = linkedEvent,
-                onValueChange = { linkedEvent = it },
-                label = { Text("Linked event (e.g. Christmas, optional)") },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        Text("When completed", style = MaterialTheme.typography.titleSmall)
-        CompletionBehaviorOption(
-            "One-off — done and gone",
-            CompletionBehavior.ONE_OFF,
-            completionBehavior,
-        ) { completionBehavior = CompletionBehavior.ONE_OFF }
-        CompletionBehaviorOption(
-            "Repeats on a schedule",
-            CompletionBehavior.SCHEDULED,
-            completionBehavior,
-        ) { completionBehavior = CompletionBehavior.SCHEDULED }
-        CompletionBehaviorOption(
-            "Repeats blank — I'll re-date it myself (e.g. Etsy order)",
-            CompletionBehavior.MANUAL,
-            completionBehavior,
-        ) { completionBehavior = CompletionBehavior.MANUAL }
-
-        if (completionBehavior == CompletionBehavior.SCHEDULED) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = recurrenceInterval,
-                    onValueChange = { recurrenceInterval = it.filter { c -> c.isDigit() } },
-                    label = { Text("Repeats every") },
-                    modifier = Modifier.weight(1f),
-                )
-                ExposedDropdownMenuBox(
-                    expanded = recurrenceUnitMenuExpanded,
-                    onExpandedChange = { recurrenceUnitMenuExpanded = it },
-                    modifier = Modifier.weight(1f),
-                ) {
+            val subcategories = selectedCategory?.subcategories.orEmpty()
+            if (subcategories.isNotEmpty()) {
+                ExposedDropdownMenuBox(expanded = subcategoryMenuExpanded, onExpandedChange = { subcategoryMenuExpanded = it }) {
                     OutlinedTextField(
-                        value = recurrenceUnit.name,
+                        value = selectedSubcategory?.name ?: "(none)",
                         onValueChange = {},
                         readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceUnitMenuExpanded) },
+                        label = { Text("Subcategory") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = subcategoryMenuExpanded) },
                         modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                     )
-                    ExposedDropdownMenu(expanded = recurrenceUnitMenuExpanded, onDismissRequest = { recurrenceUnitMenuExpanded = false }) {
-                        RecurrenceUnit.entries.forEach { u ->
-                            DropdownMenuItem(text = { Text(u.name) }, onClick = {
-                                recurrenceUnit = u
-                                recurrenceUnitMenuExpanded = false
+                    ExposedDropdownMenu(expanded = subcategoryMenuExpanded, onDismissRequest = { subcategoryMenuExpanded = false }) {
+                        subcategories.forEach { sub ->
+                            DropdownMenuItem(text = { Text(sub.name) }, onClick = {
+                                selectedSubcategory = sub
+                                subcategoryMenuExpanded = false
                             })
                         }
                     }
                 }
             }
-            ExposedDropdownMenuBox(expanded = recurrenceBaseMenuExpanded, onExpandedChange = { recurrenceBaseMenuExpanded = it }) {
+        }
+
+        FormSection("Schedule") {
+            OutlinedTextField(
+                value = durationMinutes,
+                onValueChange = { durationMinutes = it.filter { c -> c.isDigit() } },
+                label = { Text("Duration (minutes)") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            DueDateField(value = dueDate, onValueChange = { dueDate = it }, label = "Due date")
+
+            if (effectiveOrdered) {
                 OutlinedTextField(
-                    value = recurrenceBase.label(),
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("When completed") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceBaseMenuExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                    value = queuePosition,
+                    onValueChange = { queuePosition = it.filter { c -> c.isDigit() } },
+                    label = { Text("Order (optional — lower goes first)") },
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                ExposedDropdownMenu(expanded = recurrenceBaseMenuExpanded, onDismissRequest = { recurrenceBaseMenuExpanded = false }) {
-                    RecurrenceBase.entries.forEach { base ->
-                        DropdownMenuItem(text = { Text(base.label()) }, onClick = {
-                            recurrenceBase = base
-                            recurrenceBaseMenuExpanded = false
-                        })
+            }
+        }
+
+        if (effectiveLinksToPerson || effectiveLinksToEvent) {
+            FormSection("Extras") {
+                if (effectiveLinksToPerson) {
+                    ExposedDropdownMenuBox(expanded = personMenuExpanded, onExpandedChange = { personMenuExpanded = it }) {
+                        OutlinedTextField(
+                            value = selectedPerson?.name ?: "(none)",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Person") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = personMenuExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                        )
+                        ExposedDropdownMenu(expanded = personMenuExpanded, onDismissRequest = { personMenuExpanded = false }) {
+                            people.forEach { person ->
+                                DropdownMenuItem(text = { Text(person.name) }, onClick = {
+                                    selectedPerson = person
+                                    personMenuExpanded = false
+                                })
+                            }
+                        }
+                    }
+                }
+
+                if (effectiveLinksToEvent) {
+                    OutlinedTextField(
+                        value = linkedEvent,
+                        onValueChange = { linkedEvent = it },
+                        label = { Text("Linked event (e.g. Christmas, optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+
+        FormSection("When completed") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CompletionBehavior.entries.forEach { behavior ->
+                    SelectableChip(behavior.label, completionBehavior == behavior) { completionBehavior = behavior }
+                }
+            }
+            if (completionBehavior == CompletionBehavior.MANUAL) {
+                Text(
+                    "Comes back blank when completed, ready to re-date (e.g. Etsy order).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (completionBehavior == CompletionBehavior.SCHEDULED) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = recurrenceInterval,
+                        onValueChange = { recurrenceInterval = it.filter { c -> c.isDigit() } },
+                        label = { Text("Repeats every") },
+                        modifier = Modifier.weight(1f),
+                    )
+                    ExposedDropdownMenuBox(
+                        expanded = recurrenceUnitMenuExpanded,
+                        onExpandedChange = { recurrenceUnitMenuExpanded = it },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        OutlinedTextField(
+                            value = recurrenceUnit.name,
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceUnitMenuExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                        )
+                        ExposedDropdownMenu(expanded = recurrenceUnitMenuExpanded, onDismissRequest = { recurrenceUnitMenuExpanded = false }) {
+                            RecurrenceUnit.entries.forEach { u ->
+                                DropdownMenuItem(text = { Text(u.name) }, onClick = {
+                                    recurrenceUnit = u
+                                    recurrenceUnitMenuExpanded = false
+                                })
+                            }
+                        }
+                    }
+                }
+                ExposedDropdownMenuBox(expanded = recurrenceBaseMenuExpanded, onExpandedChange = { recurrenceBaseMenuExpanded = it }) {
+                    OutlinedTextField(
+                        value = recurrenceBase.label(),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("When completed") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceBaseMenuExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                    )
+                    ExposedDropdownMenu(expanded = recurrenceBaseMenuExpanded, onDismissRequest = { recurrenceBaseMenuExpanded = false }) {
+                        RecurrenceBase.entries.forEach { base ->
+                            DropdownMenuItem(text = { Text(base.label()) }, onClick = {
+                                recurrenceBase = base
+                                recurrenceBaseMenuExpanded = false
+                            })
+                        }
                     }
                 }
             }
         }
 
-        TextButton(onClick = { showFollowUp = !showFollowUp }) {
-            Text(if (showFollowUp) "Cancel follow-up link" else "+ Link a follow-up task")
-        }
-        if (showFollowUp) {
-            ExposedDropdownMenuBox(expanded = followUpMenuExpanded, onExpandedChange = { followUpMenuExpanded = it }) {
-                OutlinedTextField(
-                    value = followUpTask?.name ?: "(choose a task)",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Follow-up task") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = followUpMenuExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-                )
-                ExposedDropdownMenu(expanded = followUpMenuExpanded, onDismissRequest = { followUpMenuExpanded = false }) {
-                    existingTasks.forEach { candidate ->
-                        DropdownMenuItem(text = { Text(candidate.name) }, onClick = {
-                            followUpTask = candidate
-                            followUpMenuExpanded = false
-                        })
+        FormSection("Follow-up") {
+            TextButton(onClick = { showFollowUp = !showFollowUp }) {
+                Text(if (showFollowUp) "Cancel follow-up link" else "+ Link a follow-up task")
+            }
+            if (showFollowUp) {
+                ExposedDropdownMenuBox(expanded = followUpMenuExpanded, onExpandedChange = { followUpMenuExpanded = it }) {
+                    OutlinedTextField(
+                        value = followUpTask?.name ?: "(choose a task)",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Follow-up task") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = followUpMenuExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                    )
+                    ExposedDropdownMenu(expanded = followUpMenuExpanded, onDismissRequest = { followUpMenuExpanded = false }) {
+                        existingTasks.forEach { candidate ->
+                            DropdownMenuItem(text = { Text(candidate.name) }, onClick = {
+                                followUpTask = candidate
+                                followUpMenuExpanded = false
+                            })
+                        }
                     }
                 }
+                OutlinedTextField(
+                    value = followUpOffsetDays,
+                    onValueChange = { followUpOffsetDays = it.filter { c -> c.isDigit() } },
+                    label = { Text("Days after this one's completed") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
-            OutlinedTextField(
-                value = followUpOffsetDays,
-                onValueChange = { followUpOffsetDays = it.filter { c -> c.isDigit() } },
-                label = { Text("Days after this one's completed") },
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
 
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -317,7 +334,7 @@ fun AddTaskScreen(apiClient: ApiClient, sessionToken: String, onDone: () -> Unit
                                     subcategoryId = selectedSubcategory?.id,
                                     personId = selectedPerson?.id,
                                     linkedEvent = linkedEvent.ifBlank { null },
-                                    dueDate = dueDate.ifBlank { null },
+                                    dueDate = dueDate,
                                     durationMinutes = durationMinutes.toInt(),
                                     recurrenceInterval = if (completionBehavior == CompletionBehavior.SCHEDULED) recurrenceInterval.toIntOrNull() else null,
                                     recurrenceUnit = if (completionBehavior == CompletionBehavior.SCHEDULED) recurrenceInterval.toIntOrNull()?.let { recurrenceUnit } else null,
@@ -342,9 +359,14 @@ fun AddTaskScreen(apiClient: ApiClient, sessionToken: String, onDone: () -> Unit
 }
 
 @Composable
-private fun CompletionBehaviorOption(label: String, value: CompletionBehavior, selected: CompletionBehavior, onSelect: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = value == selected, onClick = onSelect)
-        Text(label)
+private fun FormSection(title: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        content()
     }
+}
+
+@Composable
+private fun CategoryDot(colorHex: String) {
+    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(colorHex.toColorOrNull() ?: MaterialTheme.colorScheme.outline))
 }

@@ -1,6 +1,36 @@
 package com.timeplanning.app
 
+import androidx.compose.ui.graphics.Color
 import kotlinx.serialization.Serializable
+
+/** A curated, distinct-hue palette for category colour — kept small and deliberate rather than a full colour wheel. */
+val CategoryPalette: List<String> = listOf(
+    "#5B4FE0", // indigo
+    "#2A9D8F", // teal
+    "#E76F51", // coral
+    "#F4A825", // amber
+    "#D6336C", // rose
+    "#3B82C4", // sky
+    "#52A447", // green
+    "#8854D0", // purple
+)
+
+/** Parses a "#RRGGBB" hex string into a Compose Color; falls back to the first palette colour if malformed. */
+fun String.toColorOrNull(): Color? = runCatching {
+    val hex = removePrefix("#")
+    require(hex.length == 6)
+    Color(
+        red = hex.substring(0, 2).toInt(16) / 255f,
+        green = hex.substring(2, 4).toInt(16) / 255f,
+        blue = hex.substring(4, 6).toInt(16) / 255f,
+    )
+}.getOrNull()
+
+/** Deterministic fallback so a category created before colours existed (or left blank) still renders one consistently. */
+private fun String.hashToPaletteColor(): String {
+    val index = fold(0) { acc, c -> acc + c.code }.mod(CategoryPalette.size)
+    return CategoryPalette[index]
+}
 
 enum class TaskStatus { PENDING, SCHEDULED, COMPLETED, ABANDONED }
 
@@ -38,8 +68,12 @@ data class TaskCategory(
     val ordered: Boolean = false,
     val linksToPerson: Boolean = false,
     val linksToEvent: Boolean = false,
+    val color: String? = null,
     val subcategories: List<TaskSubcategory> = emptyList(),
-)
+) {
+    /** color if set, else a colour deterministically derived from the name — never blank. */
+    val displayColor: String get() = color ?: name.hashToPaletteColor()
+}
 
 @Serializable
 data class CreateTaskCategoryRequest(
@@ -48,6 +82,17 @@ data class CreateTaskCategoryRequest(
     val ordered: Boolean = false,
     val linksToPerson: Boolean = false,
     val linksToEvent: Boolean = false,
+    val color: String? = null,
+)
+
+@Serializable
+data class UpdateTaskCategoryRequest(
+    val name: String? = null,
+    val defaultRecurrenceBase: RecurrenceBase? = null,
+    val ordered: Boolean? = null,
+    val linksToPerson: Boolean? = null,
+    val linksToEvent: Boolean? = null,
+    val color: String? = null,
 )
 
 @Serializable
