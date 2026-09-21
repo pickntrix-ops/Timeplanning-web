@@ -5,4 +5,5 @@ sealed class Screen {
     data object SignIn : Screen()
     data object Today : Screen()
     data object AddTask : Screen()
+    data object Calendar : Screen()
 }

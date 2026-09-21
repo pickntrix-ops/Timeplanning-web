@@ -6,6 +6,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.parameter
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -100,6 +101,26 @@ class ApiClient {
     suspend fun generateWeek(sessionToken: String, weekStart: String) {
         client.post("$BASE_URL/scheduling/weeks/$weekStart/generate") {
             header("Authorization", "Bearer $sessionToken")
+        }
+    }
+
+    suspend fun fetchCalendarEvents(sessionToken: String, start: String, end: String): List<CalendarEventInfo> =
+        client.get("$BASE_URL/calendar/events") {
+            header("Authorization", "Bearer $sessionToken")
+            parameter("start", start)
+            parameter("end", end)
+        }.body()
+
+    suspend fun fetchCalendars(sessionToken: String): List<GoogleCalendarInfo> =
+        client.get("$BASE_URL/calendar/calendars") {
+            header("Authorization", "Bearer $sessionToken")
+        }.body()
+
+    suspend fun updateSelectedCalendars(sessionToken: String, calendarIds: List<String>) {
+        client.put("$BASE_URL/calendar/calendars/selected") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(UpdateSelectedCalendarsRequest(calendarIds))
         }
     }
 }

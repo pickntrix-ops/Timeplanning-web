@@ -52,3 +52,25 @@ data class BlockInstance(
     val isProtected: Boolean = false,
     val notes: String? = null,
 )
+
+@Serializable
+data class GoogleCalendarInfo(
+    val id: String,
+    val summary: String,
+    val primary: Boolean,
+    val selected: Boolean,
+)
+
+@Serializable
+data class CalendarEventInfo(
+    val id: String,
+    val calendarId: String,
+    val calendarSummary: String,
+    val title: String,
+    val start: String,
+    val end: String,
+    val isAllDay: Boolean,
+)
+
+@Serializable
+data class UpdateSelectedCalendarsRequest(val calendarIds: List<String>)

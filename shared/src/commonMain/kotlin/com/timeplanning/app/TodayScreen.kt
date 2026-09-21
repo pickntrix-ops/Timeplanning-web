@@ -49,6 +49,7 @@ fun TodayScreen(
     apiClient: ApiClient,
     sessionToken: String,
     onAddTask: () -> Unit,
+    onOpenCalendar: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -88,11 +89,16 @@ fun TodayScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.safeContentPadding().padding(padding).fillMaxSize()) {
+            Text(
+                "Today — $today",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+            )
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.End,
             ) {
-                Text("Today — $today", style = MaterialTheme.typography.headlineSmall)
+                TextButton(onClick = onOpenCalendar) { Text("Calendar") }
                 TextButton(onClick = onSignOut) { Text("Sign out") }
             }
 
