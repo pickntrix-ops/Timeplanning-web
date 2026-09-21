@@ -2,30 +2,83 @@ package com.timeplanning.app
 
 import kotlinx.serialization.Serializable
 
-/** Mirrors the server's TaskType enum (server/domain/Enums.kt). */
-enum class TaskType { EXERCISE, CLEANING, JOB, PROJECT, GENERAL }
-
 enum class TaskStatus { PENDING, SCHEDULED, COMPLETED, ABANDONED }
 
-enum class GeneralSubcategory { LAPTOP, SHOPPING, ERRAND, ADMIN, SOCIAL }
+enum class RecurrenceUnit { D, W, M, Y }
 
-enum class CleaningTier { BASIC, IN_DEPTH }
+enum class RecurrenceBase { DUE_DATE, COMPLETION_DATE }
+
+@Serializable
+data class TaskSubcategory(
+    val id: Long,
+    val name: String,
+    val priority: Int = 0,
+    // Each nullable: null = inherits the category's default, non-null overrides it for this subcategory.
+    val ordered: Boolean? = null,
+    val requiresDaytime: Boolean? = null,
+    val linksToPerson: Boolean? = null,
+    val linksToEvent: Boolean? = null,
+)
+
+/**
+ * A user-defined replacement for the old fixed TaskType — see PROJECT_LOG.md
+ * "task categories" entry. ordered/requiresDaytime/linksToPerson/
+ * linksToEvent are defaults; any subcategory can override its own copy.
+ */
+@Serializable
+data class TaskCategory(
+    val id: Long,
+    val name: String,
+    val defaultRecurrenceBase: RecurrenceBase = RecurrenceBase.DUE_DATE,
+    val ordered: Boolean = false,
+    val requiresDaytime: Boolean = false,
+    val linksToPerson: Boolean = false,
+    val linksToEvent: Boolean = false,
+    val subcategories: List<TaskSubcategory> = emptyList(),
+)
+
+@Serializable
+data class CreateTaskCategoryRequest(
+    val name: String,
+    val defaultRecurrenceBase: RecurrenceBase = RecurrenceBase.DUE_DATE,
+    val ordered: Boolean = false,
+    val requiresDaytime: Boolean = false,
+    val linksToPerson: Boolean = false,
+    val linksToEvent: Boolean = false,
+)
+
+@Serializable
+data class CreateTaskSubcategoryRequest(
+    val name: String,
+    val priority: Int = 0,
+    val ordered: Boolean? = null,
+    val requiresDaytime: Boolean? = null,
+    val linksToPerson: Boolean? = null,
+    val linksToEvent: Boolean? = null,
+)
 
 @Serializable
 data class Task(
     val id: Long,
     val name: String,
-    val taskType: TaskType,
-    val subcategory: GeneralSubcategory? = null,
-    val cleaningTier: CleaningTier? = null,
+    val taskCategoryId: Long,
+    val taskCategoryName: String,
+    val subcategoryId: Long? = null,
+    val subcategoryName: String? = null,
     val personId: Long? = null,
     val personName: String? = null,
-    val blockInstanceId: Long? = null,
+    val linkedEvent: String? = null,
     val dueDate: String? = null,
     val durationMinutes: Int,
     val isPinned: Boolean = false,
     val pinnedDay: String? = null,
     val status: TaskStatus,
+    val recurrenceInterval: Int? = null,
+    val recurrenceUnit: RecurrenceUnit? = null,
+    val recurrenceBase: RecurrenceBase = RecurrenceBase.DUE_DATE,
+    val repeatsManually: Boolean = false,
+    val followUpTaskId: Long? = null,
+    val followUpOffsetDays: Int? = null,
     val rolloverCount: Int = 0,
     val queuePosition: Int? = null,
 )
@@ -33,25 +86,30 @@ data class Task(
 @Serializable
 data class CreateTaskRequest(
     val name: String,
-    val taskType: TaskType,
-    val subcategory: GeneralSubcategory? = null,
-    val cleaningTier: CleaningTier? = null,
+    val taskCategoryId: Long,
+    val subcategoryId: Long? = null,
+    val personId: Long? = null,
+    val linkedEvent: String? = null,
     val dueDate: String? = null,
     val durationMinutes: Int,
+    val recurrenceInterval: Int? = null,
+    val recurrenceUnit: RecurrenceUnit? = null,
+    val recurrenceBase: RecurrenceBase = RecurrenceBase.DUE_DATE,
+    val repeatsManually: Boolean = false,
+    val followUpTaskId: Long? = null,
+    val followUpOffsetDays: Int? = null,
+    val queuePosition: Int? = null,
 )
 
 @Serializable
-data class BlockInstance(
+data class Person(
     val id: Long,
-    val templateId: Long? = null,
-    val blockDate: String,
-    val taskType: TaskType,
-    val startTime: String,
-    val endTime: String,
-    val source: String,
-    val isProtected: Boolean = false,
-    val notes: String? = null,
+    val name: String,
+    val birthday: String? = null,
 )
+
+@Serializable
+data class CreatePersonRequest(val name: String)
 
 @Serializable
 data class GoogleCalendarInfo(

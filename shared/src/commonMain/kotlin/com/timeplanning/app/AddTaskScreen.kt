@@ -17,38 +17,85 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+
+private enum class CompletionBehavior { ONE_OFF, SCHEDULED, MANUAL }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTaskScreen(apiClient: ApiClient, sessionToken: String, onDone: () -> Unit, onCancel: () -> Unit) {
     val scope = rememberCoroutineScope()
 
+    var categories by remember { mutableStateOf<List<TaskCategory>>(emptyList()) }
+    var people by remember { mutableStateOf<List<Person>>(emptyList()) }
+    var existingTasks by remember { mutableStateOf<List<Task>>(emptyList()) }
+    var loadingOptions by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        runCatching {
+            val cats = apiClient.fetchTaskCategories(sessionToken)
+            val ppl = apiClient.fetchPeople(sessionToken)
+            val tasks = apiClient.fetchTasks(sessionToken)
+            Triple(cats, ppl, tasks)
+        }.onSuccess { (cats, ppl, tasks) ->
+            categories = cats
+            people = ppl
+            existingTasks = tasks
+        }
+        loadingOptions = false
+    }
+
     var name by remember { mutableStateOf("") }
-    var taskType by remember { mutableStateOf(TaskType.GENERAL) }
-    var typeMenuExpanded by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf<TaskCategory?>(null) }
+    var categoryMenuExpanded by remember { mutableStateOf(false) }
+    var selectedSubcategory by remember { mutableStateOf<TaskSubcategory?>(null) }
+    var subcategoryMenuExpanded by remember { mutableStateOf(false) }
     var durationMinutes by remember { mutableStateOf("30") }
     var dueDate by remember { mutableStateOf("") }
-    var subcategory by remember { mutableStateOf<GeneralSubcategory?>(null) }
-    var subcategoryMenuExpanded by remember { mutableStateOf(false) }
+    var queuePosition by remember { mutableStateOf("") }
+    var selectedPerson by remember { mutableStateOf<Person?>(null) }
+    var personMenuExpanded by remember { mutableStateOf(false) }
+    var linkedEvent by remember { mutableStateOf("") }
+
+    var completionBehavior by remember { mutableStateOf(CompletionBehavior.ONE_OFF) }
+    var recurrenceInterval by remember { mutableStateOf("") }
+    var recurrenceUnit by remember { mutableStateOf(RecurrenceUnit.D) }
+    var recurrenceUnitMenuExpanded by remember { mutableStateOf(false) }
+    var recurrenceBase by remember { mutableStateOf(RecurrenceBase.DUE_DATE) }
+    var recurrenceBaseMenuExpanded by remember { mutableStateOf(false) }
+
+    var showFollowUp by remember { mutableStateOf(false) }
+    var followUpTask by remember { mutableStateOf<Task?>(null) }
+    var followUpMenuExpanded by remember { mutableStateOf(false) }
+    var followUpOffsetDays by remember { mutableStateOf("") }
+
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    val effectiveOrdered = selectedSubcategory?.ordered ?: selectedCategory?.ordered ?: false
+    val effectiveLinksToPerson = selectedSubcategory?.linksToPerson ?: selectedCategory?.linksToPerson ?: false
+    val effectiveLinksToEvent = selectedSubcategory?.linksToEvent ?: selectedCategory?.linksToEvent ?: false
 
     Column(
         modifier = Modifier.safeContentPadding().fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Add task", style = MaterialTheme.typography.headlineSmall)
+
+        if (loadingOptions) CircularProgressIndicator()
 
         OutlinedTextField(
             value = name,
@@ -57,30 +104,32 @@ fun AddTaskScreen(apiClient: ApiClient, sessionToken: String, onDone: () -> Unit
             modifier = Modifier.fillMaxWidth(),
         )
 
-        ExposedDropdownMenuBox(expanded = typeMenuExpanded, onExpandedChange = { typeMenuExpanded = it }) {
+        ExposedDropdownMenuBox(expanded = categoryMenuExpanded, onExpandedChange = { categoryMenuExpanded = it }) {
             OutlinedTextField(
-                value = taskType.name,
+                value = selectedCategory?.name ?: "(choose a category)",
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Type") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeMenuExpanded) },
+                label = { Text("Category") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuExpanded) },
                 modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
             )
-            ExposedDropdownMenu(expanded = typeMenuExpanded, onDismissRequest = { typeMenuExpanded = false }) {
-                TaskType.entries.filter { it != TaskType.JOB }.forEach { type ->
-                    DropdownMenuItem(text = { Text(type.name) }, onClick = {
-                        taskType = type
-                        if (type != TaskType.GENERAL) subcategory = null
-                        typeMenuExpanded = false
+            ExposedDropdownMenu(expanded = categoryMenuExpanded, onDismissRequest = { categoryMenuExpanded = false }) {
+                categories.forEach { category ->
+                    DropdownMenuItem(text = { Text(category.name) }, onClick = {
+                        selectedCategory = category
+                        selectedSubcategory = null
+                        recurrenceBase = category.defaultRecurrenceBase
+                        categoryMenuExpanded = false
                     })
                 }
             }
         }
 
-        if (taskType == TaskType.GENERAL) {
+        val subcategories = selectedCategory?.subcategories.orEmpty()
+        if (subcategories.isNotEmpty()) {
             ExposedDropdownMenuBox(expanded = subcategoryMenuExpanded, onExpandedChange = { subcategoryMenuExpanded = it }) {
                 OutlinedTextField(
-                    value = subcategory?.name ?: "(none)",
+                    value = selectedSubcategory?.name ?: "(none)",
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Subcategory") },
@@ -88,9 +137,9 @@ fun AddTaskScreen(apiClient: ApiClient, sessionToken: String, onDone: () -> Unit
                     modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                 )
                 ExposedDropdownMenu(expanded = subcategoryMenuExpanded, onDismissRequest = { subcategoryMenuExpanded = false }) {
-                    GeneralSubcategory.entries.forEach { sub ->
+                    subcategories.forEach { sub ->
                         DropdownMenuItem(text = { Text(sub.name) }, onClick = {
-                            subcategory = sub
+                            selectedSubcategory = sub
                             subcategoryMenuExpanded = false
                         })
                     }
@@ -112,13 +161,150 @@ fun AddTaskScreen(apiClient: ApiClient, sessionToken: String, onDone: () -> Unit
             modifier = Modifier.fillMaxWidth(),
         )
 
+        if (effectiveOrdered) {
+            OutlinedTextField(
+                value = queuePosition,
+                onValueChange = { queuePosition = it.filter { c -> c.isDigit() } },
+                label = { Text("Order (optional — lower goes first)") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        if (effectiveLinksToPerson) {
+            ExposedDropdownMenuBox(expanded = personMenuExpanded, onExpandedChange = { personMenuExpanded = it }) {
+                OutlinedTextField(
+                    value = selectedPerson?.name ?: "(none)",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Person") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = personMenuExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                )
+                ExposedDropdownMenu(expanded = personMenuExpanded, onDismissRequest = { personMenuExpanded = false }) {
+                    people.forEach { person ->
+                        DropdownMenuItem(text = { Text(person.name) }, onClick = {
+                            selectedPerson = person
+                            personMenuExpanded = false
+                        })
+                    }
+                }
+            }
+        }
+
+        if (effectiveLinksToEvent) {
+            OutlinedTextField(
+                value = linkedEvent,
+                onValueChange = { linkedEvent = it },
+                label = { Text("Linked event (e.g. Christmas, optional)") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        Text("When completed", style = MaterialTheme.typography.titleSmall)
+        CompletionBehaviorOption(
+            "One-off — done and gone",
+            CompletionBehavior.ONE_OFF,
+            completionBehavior,
+        ) { completionBehavior = CompletionBehavior.ONE_OFF }
+        CompletionBehaviorOption(
+            "Repeats on a schedule",
+            CompletionBehavior.SCHEDULED,
+            completionBehavior,
+        ) { completionBehavior = CompletionBehavior.SCHEDULED }
+        CompletionBehaviorOption(
+            "Repeats blank — I'll re-date it myself (e.g. Etsy order)",
+            CompletionBehavior.MANUAL,
+            completionBehavior,
+        ) { completionBehavior = CompletionBehavior.MANUAL }
+
+        if (completionBehavior == CompletionBehavior.SCHEDULED) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = recurrenceInterval,
+                    onValueChange = { recurrenceInterval = it.filter { c -> c.isDigit() } },
+                    label = { Text("Repeats every") },
+                    modifier = Modifier.weight(1f),
+                )
+                ExposedDropdownMenuBox(
+                    expanded = recurrenceUnitMenuExpanded,
+                    onExpandedChange = { recurrenceUnitMenuExpanded = it },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    OutlinedTextField(
+                        value = recurrenceUnit.name,
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceUnitMenuExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                    )
+                    ExposedDropdownMenu(expanded = recurrenceUnitMenuExpanded, onDismissRequest = { recurrenceUnitMenuExpanded = false }) {
+                        RecurrenceUnit.entries.forEach { u ->
+                            DropdownMenuItem(text = { Text(u.name) }, onClick = {
+                                recurrenceUnit = u
+                                recurrenceUnitMenuExpanded = false
+                            })
+                        }
+                    }
+                }
+            }
+            ExposedDropdownMenuBox(expanded = recurrenceBaseMenuExpanded, onExpandedChange = { recurrenceBaseMenuExpanded = it }) {
+                OutlinedTextField(
+                    value = recurrenceBase.name,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Counts from") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceBaseMenuExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                )
+                ExposedDropdownMenu(expanded = recurrenceBaseMenuExpanded, onDismissRequest = { recurrenceBaseMenuExpanded = false }) {
+                    RecurrenceBase.entries.forEach { base ->
+                        DropdownMenuItem(text = { Text(base.name) }, onClick = {
+                            recurrenceBase = base
+                            recurrenceBaseMenuExpanded = false
+                        })
+                    }
+                }
+            }
+        }
+
+        TextButton(onClick = { showFollowUp = !showFollowUp }) {
+            Text(if (showFollowUp) "Cancel follow-up link" else "+ Link a follow-up task")
+        }
+        if (showFollowUp) {
+            ExposedDropdownMenuBox(expanded = followUpMenuExpanded, onExpandedChange = { followUpMenuExpanded = it }) {
+                OutlinedTextField(
+                    value = followUpTask?.name ?: "(choose a task)",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Follow-up task") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = followUpMenuExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                )
+                ExposedDropdownMenu(expanded = followUpMenuExpanded, onDismissRequest = { followUpMenuExpanded = false }) {
+                    existingTasks.forEach { candidate ->
+                        DropdownMenuItem(text = { Text(candidate.name) }, onClick = {
+                            followUpTask = candidate
+                            followUpMenuExpanded = false
+                        })
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = followUpOffsetDays,
+                onValueChange = { followUpOffsetDays = it.filter { c -> c.isDigit() } },
+                label = { Text("Days after this one's completed") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (loading) CircularProgressIndicator()
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                enabled = name.isNotBlank() && durationMinutes.toIntOrNull() != null && !loading,
+                enabled = name.isNotBlank() && selectedCategory != null && durationMinutes.toIntOrNull() != null && !loading,
                 onClick = {
+                    val category = selectedCategory ?: return@Button
                     loading = true
                     error = null
                     scope.launch {
@@ -127,10 +313,19 @@ fun AddTaskScreen(apiClient: ApiClient, sessionToken: String, onDone: () -> Unit
                                 sessionToken,
                                 CreateTaskRequest(
                                     name = name,
-                                    taskType = taskType,
-                                    subcategory = subcategory,
+                                    taskCategoryId = category.id,
+                                    subcategoryId = selectedSubcategory?.id,
+                                    personId = selectedPerson?.id,
+                                    linkedEvent = linkedEvent.ifBlank { null },
                                     dueDate = dueDate.ifBlank { null },
                                     durationMinutes = durationMinutes.toInt(),
+                                    recurrenceInterval = if (completionBehavior == CompletionBehavior.SCHEDULED) recurrenceInterval.toIntOrNull() else null,
+                                    recurrenceUnit = if (completionBehavior == CompletionBehavior.SCHEDULED) recurrenceInterval.toIntOrNull()?.let { recurrenceUnit } else null,
+                                    recurrenceBase = recurrenceBase,
+                                    repeatsManually = completionBehavior == CompletionBehavior.MANUAL,
+                                    followUpTaskId = if (showFollowUp) followUpTask?.id else null,
+                                    followUpOffsetDays = if (showFollowUp) followUpOffsetDays.toIntOrNull() else null,
+                                    queuePosition = queuePosition.toIntOrNull(),
                                 ),
                             )
                         }.onSuccess { onDone() }
@@ -143,5 +338,13 @@ fun AddTaskScreen(apiClient: ApiClient, sessionToken: String, onDone: () -> Unit
             }
             TextButton(onClick = onCancel) { Text("Cancel") }
         }
+    }
+}
+
+@Composable
+private fun CompletionBehaviorOption(label: String, value: CompletionBehavior, selected: CompletionBehavior, onSelect: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        RadioButton(selected = value == selected, onClick = onSelect)
+        Text(label)
     }
 }

@@ -75,6 +75,7 @@ fun App() {
                         sessionToken = token,
                         onAddTask = { screen = Screen.AddTask },
                         onOpenCalendar = { screen = Screen.Calendar },
+                        onOpenTaskCategories = { screen = Screen.TaskCategories },
                         onSignOut = {
                             sessionStore.clear()
                             sessionToken = null
@@ -104,6 +105,19 @@ fun App() {
                     screen = Screen.SignIn
                 } else {
                     CalendarScreen(
+                        apiClient = apiClient,
+                        sessionToken = token,
+                        onBack = { screen = Screen.Today },
+                    )
+                }
+            }
+
+            is Screen.TaskCategories -> {
+                val token = sessionToken
+                if (token == null) {
+                    screen = Screen.SignIn
+                } else {
+                    TaskCategoriesScreen(
                         apiClient = apiClient,
                         sessionToken = token,
                         onBack = { screen = Screen.Today },

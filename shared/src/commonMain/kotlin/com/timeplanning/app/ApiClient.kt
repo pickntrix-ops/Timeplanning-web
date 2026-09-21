@@ -3,6 +3,7 @@ package com.timeplanning.app
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -93,19 +94,6 @@ class ApiClient {
             header("Authorization", "Bearer $sessionToken")
         }.body()
 
-    suspend fun fetchBlockInstances(sessionToken: String, start: String, end: String): List<BlockInstance> =
-        client.get("$BASE_URL/block-instances") {
-            header("Authorization", "Bearer $sessionToken")
-            parameter("start", start)
-            parameter("end", end)
-        }.body()
-
-    suspend fun generateWeek(sessionToken: String, weekStart: String) {
-        client.post("$BASE_URL/scheduling/weeks/$weekStart/generate") {
-            header("Authorization", "Bearer $sessionToken")
-        }
-    }
-
     suspend fun fetchCalendarEvents(sessionToken: String, start: String, end: String): List<CalendarEventInfo> =
         client.get("$BASE_URL/calendar/events") {
             header("Authorization", "Bearer $sessionToken")
@@ -125,4 +113,47 @@ class ApiClient {
             setBody(UpdateSelectedCalendarsRequest(calendarIds))
         }
     }
+
+    suspend fun fetchTaskCategories(sessionToken: String): List<TaskCategory> =
+        client.get("$BASE_URL/task-categories") {
+            header("Authorization", "Bearer $sessionToken")
+        }.body()
+
+    suspend fun createTaskCategory(sessionToken: String, request: CreateTaskCategoryRequest): TaskCategory =
+        client.post("$BASE_URL/task-categories") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
+
+    suspend fun deleteTaskCategory(sessionToken: String, categoryId: Long) {
+        client.delete("$BASE_URL/task-categories/$categoryId") {
+            header("Authorization", "Bearer $sessionToken")
+        }
+    }
+
+    suspend fun createTaskSubcategory(sessionToken: String, categoryId: Long, request: CreateTaskSubcategoryRequest): TaskSubcategory =
+        client.post("$BASE_URL/task-categories/$categoryId/subcategories") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
+
+    suspend fun deleteTaskSubcategory(sessionToken: String, categoryId: Long, subcategoryId: Long) {
+        client.delete("$BASE_URL/task-categories/$categoryId/subcategories/$subcategoryId") {
+            header("Authorization", "Bearer $sessionToken")
+        }
+    }
+
+    suspend fun fetchPeople(sessionToken: String): List<Person> =
+        client.get("$BASE_URL/people") {
+            header("Authorization", "Bearer $sessionToken")
+        }.body()
+
+    suspend fun createPerson(sessionToken: String, name: String): Person =
+        client.post("$BASE_URL/people") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(CreatePersonRequest(name))
+        }.body()
 }
