@@ -8,6 +8,12 @@ enum class RecurrenceUnit { D, W, M, Y }
 
 enum class RecurrenceBase { DUE_DATE, COMPLETION_DATE }
 
+/** Plain-English label for the recurrence-style pickers — DUE_DATE/COMPLETION_DATE reads as jargon on its own. */
+fun RecurrenceBase.label(): String = when (this) {
+    RecurrenceBase.DUE_DATE -> "Fixed schedule (stays on rhythm even if you're late)"
+    RecurrenceBase.COMPLETION_DATE -> "Restarts from completion (counts from when you actually finish it)"
+}
+
 @Serializable
 data class TaskSubcategory(
     val id: Long,
@@ -15,15 +21,14 @@ data class TaskSubcategory(
     val priority: Int = 0,
     // Each nullable: null = inherits the category's default, non-null overrides it for this subcategory.
     val ordered: Boolean? = null,
-    val requiresDaytime: Boolean? = null,
     val linksToPerson: Boolean? = null,
     val linksToEvent: Boolean? = null,
 )
 
 /**
  * A user-defined replacement for the old fixed TaskType — see PROJECT_LOG.md
- * "task categories" entry. ordered/requiresDaytime/linksToPerson/
- * linksToEvent are defaults; any subcategory can override its own copy.
+ * "task categories" entry. ordered/linksToPerson/linksToEvent are defaults;
+ * any subcategory can override its own copy.
  */
 @Serializable
 data class TaskCategory(
@@ -31,7 +36,6 @@ data class TaskCategory(
     val name: String,
     val defaultRecurrenceBase: RecurrenceBase = RecurrenceBase.DUE_DATE,
     val ordered: Boolean = false,
-    val requiresDaytime: Boolean = false,
     val linksToPerson: Boolean = false,
     val linksToEvent: Boolean = false,
     val subcategories: List<TaskSubcategory> = emptyList(),
@@ -42,7 +46,6 @@ data class CreateTaskCategoryRequest(
     val name: String,
     val defaultRecurrenceBase: RecurrenceBase = RecurrenceBase.DUE_DATE,
     val ordered: Boolean = false,
-    val requiresDaytime: Boolean = false,
     val linksToPerson: Boolean = false,
     val linksToEvent: Boolean = false,
 )
@@ -52,7 +55,6 @@ data class CreateTaskSubcategoryRequest(
     val name: String,
     val priority: Int = 0,
     val ordered: Boolean? = null,
-    val requiresDaytime: Boolean? = null,
     val linksToPerson: Boolean? = null,
     val linksToEvent: Boolean? = null,
 )

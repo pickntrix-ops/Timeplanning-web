@@ -209,12 +209,11 @@ private fun CategoryCard(
 private fun categorySummary(category: TaskCategory): String {
     val flags = buildList {
         if (category.ordered) add("ordered")
-        if (category.requiresDaytime) add("daytime-only")
         if (category.linksToPerson) add("links to person")
         if (category.linksToEvent) add("links to event")
     }
     val flagText = if (flags.isEmpty()) "no defaults set" else flags.joinToString(", ")
-    return "Default recurrence: ${category.defaultRecurrenceBase.name} · $flagText"
+    return "${category.defaultRecurrenceBase.label()} · $flagText"
 }
 
 @Composable
@@ -230,7 +229,6 @@ private fun SubcategoryRow(sub: TaskSubcategory, category: TaskCategory, busy: B
         }
         Text(
             "Ordered: ${overrideLabel(sub.ordered, category.ordered)} · " +
-                "Daytime: ${overrideLabel(sub.requiresDaytime, category.requiresDaytime)} · " +
                 "Person: ${overrideLabel(sub.linksToPerson, category.linksToPerson)} · " +
                 "Event: ${overrideLabel(sub.linksToEvent, category.linksToEvent)}",
             style = MaterialTheme.typography.bodySmall,
@@ -248,7 +246,6 @@ private fun AddCategoryForm(busy: Boolean, onAdd: (CreateTaskCategoryRequest) ->
     var recurrenceBase by remember { mutableStateOf(RecurrenceBase.DUE_DATE) }
     var recurrenceMenuExpanded by remember { mutableStateOf(false) }
     var ordered by remember { mutableStateOf(false) }
-    var requiresDaytime by remember { mutableStateOf(false) }
     var linksToPerson by remember { mutableStateOf(false) }
     var linksToEvent by remember { mutableStateOf(false) }
 
@@ -262,28 +259,27 @@ private fun AddCategoryForm(busy: Boolean, onAdd: (CreateTaskCategoryRequest) ->
 
         ExposedDropdownMenuBox(expanded = recurrenceMenuExpanded, onExpandedChange = { recurrenceMenuExpanded = it }) {
             OutlinedTextField(
-                value = recurrenceBase.name,
+                value = recurrenceBase.label(),
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Default recurrence style") },
+                label = { Text("When a repeating task here is completed") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceMenuExpanded) },
                 modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
             )
             ExposedDropdownMenu(expanded = recurrenceMenuExpanded, onDismissRequest = { recurrenceMenuExpanded = false }) {
                 RecurrenceBase.entries.forEach { base ->
-                    DropdownMenuItem(text = { Text(base.name) }, onClick = { recurrenceBase = base; recurrenceMenuExpanded = false })
+                    DropdownMenuItem(text = { Text(base.label()) }, onClick = { recurrenceBase = base; recurrenceMenuExpanded = false })
                 }
             }
         }
 
         CheckboxRow("Worked in order (a strict sequence)", ordered) { ordered = it }
-        CheckboxRow("Must be done during the day", requiresDaytime) { requiresDaytime = it }
         CheckboxRow("Usually links to a person", linksToPerson) { linksToPerson = it }
         CheckboxRow("Usually links to an event", linksToEvent) { linksToEvent = it }
 
         Button(
             enabled = name.isNotBlank() && !busy,
-            onClick = { onAdd(CreateTaskCategoryRequest(name, recurrenceBase, ordered, requiresDaytime, linksToPerson, linksToEvent)) },
+            onClick = { onAdd(CreateTaskCategoryRequest(name, recurrenceBase, ordered, linksToPerson, linksToEvent)) },
         ) { Text("Add category") }
     }
 }
@@ -294,7 +290,6 @@ private fun AddSubcategoryForm(category: TaskCategory, busy: Boolean, onAdd: (Cr
     var name by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf("0") }
     var ordered by remember { mutableStateOf<Boolean?>(null) }
-    var requiresDaytime by remember { mutableStateOf<Boolean?>(null) }
     var linksToPerson by remember { mutableStateOf<Boolean?>(null) }
     var linksToEvent by remember { mutableStateOf<Boolean?>(null) }
 
@@ -313,7 +308,6 @@ private fun AddSubcategoryForm(category: TaskCategory, busy: Boolean, onAdd: (Cr
         )
 
         TriStateRow("Worked in order", ordered, category.ordered) { ordered = it }
-        TriStateRow("Must be done during the day", requiresDaytime, category.requiresDaytime) { requiresDaytime = it }
         TriStateRow("Links to a person", linksToPerson, category.linksToPerson) { linksToPerson = it }
         TriStateRow("Links to an event", linksToEvent, category.linksToEvent) { linksToEvent = it }
 
@@ -325,7 +319,6 @@ private fun AddSubcategoryForm(category: TaskCategory, busy: Boolean, onAdd: (Cr
                         name = name,
                         priority = priority.toIntOrNull() ?: 0,
                         ordered = ordered,
-                        requiresDaytime = requiresDaytime,
                         linksToPerson = linksToPerson,
                         linksToEvent = linksToEvent,
                     )

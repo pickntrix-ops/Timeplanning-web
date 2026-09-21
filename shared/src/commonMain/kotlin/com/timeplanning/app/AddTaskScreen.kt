@@ -249,16 +249,16 @@ fun AddTaskScreen(apiClient: ApiClient, sessionToken: String, onDone: () -> Unit
             }
             ExposedDropdownMenuBox(expanded = recurrenceBaseMenuExpanded, onExpandedChange = { recurrenceBaseMenuExpanded = it }) {
                 OutlinedTextField(
-                    value = recurrenceBase.name,
+                    value = recurrenceBase.label(),
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Counts from") },
+                    label = { Text("When completed") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceBaseMenuExpanded) },
                     modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                 )
                 ExposedDropdownMenu(expanded = recurrenceBaseMenuExpanded, onDismissRequest = { recurrenceBaseMenuExpanded = false }) {
                     RecurrenceBase.entries.forEach { base ->
-                        DropdownMenuItem(text = { Text(base.name) }, onClick = {
+                        DropdownMenuItem(text = { Text(base.label()) }, onClick = {
                             recurrenceBase = base
                             recurrenceBaseMenuExpanded = false
                         })
