@@ -16,7 +16,7 @@ COPY gradlew gradlew.bat ./
 COPY gradle ./gradle
 RUN chmod +x gradlew
 
-COPY settings.gradle.kts build.gradle.kts ./
+COPY settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY shared/build.gradle.kts shared/build.gradle.kts
 COPY shared/src shared/src
 
