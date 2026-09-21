@@ -7,6 +7,11 @@
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /app
 
+# The Kotlin/JS-Wasm Gradle plugin downloads its own Node.js binary, which
+# needs libatomic at runtime — not present in this base image otherwise.
+RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY gradlew gradlew.bat ./
 COPY gradle ./gradle
 RUN chmod +x gradlew
