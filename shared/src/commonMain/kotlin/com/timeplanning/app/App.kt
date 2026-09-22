@@ -56,8 +56,17 @@ fun App() {
 
         if (!loadedStoredSession) return@MaterialTheme
 
+        fun onSelectTab(tab: BottomTab) {
+            screen = when (tab) {
+                BottomTab.TODAY -> Screen.Today
+                BottomTab.CALENDAR -> Screen.Calendar
+                BottomTab.CATEGORIES -> Screen.TaskCategories
+                BottomTab.ACCOUNT -> Screen.Account
+            }
+        }
+
         val content: @Composable () -> Unit = {
-        when (screen) {
+        when (val current = screen) {
             is Screen.SignIn -> SignInScreen(apiClient) { token ->
                 sessionStore.save(token)
                 sessionToken = token
@@ -72,14 +81,10 @@ fun App() {
                     TodayScreen(
                         apiClient = apiClient,
                         sessionToken = token,
+                        currentTab = BottomTab.TODAY,
+                        onSelectTab = ::onSelectTab,
                         onAddTask = { screen = Screen.AddTask },
-                        onOpenCalendar = { screen = Screen.Calendar },
-                        onOpenTaskCategories = { screen = Screen.TaskCategories },
-                        onSignOut = {
-                            sessionStore.clear()
-                            sessionToken = null
-                            screen = Screen.SignIn
-                        },
+                        onOpenTask = { task, color -> screen = Screen.TaskDetail(task, color) },
                     )
                 }
             }
@@ -98,6 +103,38 @@ fun App() {
                 }
             }
 
+            is Screen.EditTask -> {
+                val token = sessionToken
+                if (token == null) {
+                    screen = Screen.SignIn
+                } else {
+                    AddTaskScreen(
+                        apiClient = apiClient,
+                        sessionToken = token,
+                        editingTask = current.task,
+                        onDone = { screen = Screen.Today },
+                        onCancel = { screen = Screen.Today },
+                    )
+                }
+            }
+
+            is Screen.TaskDetail -> {
+                val token = sessionToken
+                if (token == null) {
+                    screen = Screen.SignIn
+                } else {
+                    TaskDetailScreen(
+                        apiClient = apiClient,
+                        sessionToken = token,
+                        task = current.task,
+                        categoryColor = current.categoryColor,
+                        onBack = { screen = Screen.Today },
+                        onEdit = { task -> screen = Screen.EditTask(task) },
+                        onDeleted = { screen = Screen.Today },
+                    )
+                }
+            }
+
             is Screen.Calendar -> {
                 val token = sessionToken
                 if (token == null) {
@@ -106,7 +143,8 @@ fun App() {
                     CalendarScreen(
                         apiClient = apiClient,
                         sessionToken = token,
-                        onBack = { screen = Screen.Today },
+                        currentTab = BottomTab.CALENDAR,
+                        onSelectTab = ::onSelectTab,
                     )
                 }
             }
@@ -119,9 +157,22 @@ fun App() {
                     TaskCategoriesScreen(
                         apiClient = apiClient,
                         sessionToken = token,
-                        onBack = { screen = Screen.Today },
+                        currentTab = BottomTab.CATEGORIES,
+                        onSelectTab = ::onSelectTab,
                     )
                 }
+            }
+
+            is Screen.Account -> {
+                AccountScreen(
+                    currentTab = BottomTab.ACCOUNT,
+                    onSelectTab = ::onSelectTab,
+                    onSignOut = {
+                        sessionStore.clear()
+                        sessionToken = null
+                        screen = Screen.SignIn
+                    },
+                )
             }
         }
         }

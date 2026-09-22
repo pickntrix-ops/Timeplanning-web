@@ -27,6 +27,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,7 +53,7 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaskCategoriesScreen(apiClient: ApiClient, sessionToken: String, onBack: () -> Unit) {
+fun TaskCategoriesScreen(apiClient: ApiClient, sessionToken: String, currentTab: BottomTab, onSelectTab: (BottomTab) -> Unit) {
     val scope = rememberCoroutineScope()
 
     var loading by remember { mutableStateOf(true) }
@@ -74,14 +75,17 @@ fun TaskCategoriesScreen(apiClient: ApiClient, sessionToken: String, onBack: () 
 
     fun refresh() { refreshKey++ }
 
-    Column(modifier = Modifier.safeContentPadding().fillMaxSize()) {
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.surface,
+        bottomBar = { BottomNavBar(current = currentTab, onSelect = onSelectTab) },
+    ) { padding ->
+    Column(modifier = Modifier.safeContentPadding().padding(padding).fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Task Categories", style = MaterialTheme.typography.headlineSmall)
-            TextButton(onClick = onBack) { Text("Back") }
         }
 
         if (loading) CircularProgressIndicator(modifier = Modifier.padding(16.dp))
@@ -169,6 +173,7 @@ fun TaskCategoriesScreen(apiClient: ApiClient, sessionToken: String, onBack: () 
                 item { Text("No categories yet. Add one above.") }
             }
         }
+    }
     }
 }
 

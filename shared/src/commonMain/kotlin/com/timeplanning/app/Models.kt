@@ -26,8 +26,8 @@ fun String.toColorOrNull(): Color? = runCatching {
     )
 }.getOrNull()
 
-/** Deterministic fallback so a category created before colours existed (or left blank) still renders one consistently. */
-private fun String.hashToPaletteColor(): String {
+/** Deterministic fallback so a category created before colours existed (or left blank) still renders one consistently. Also reused by CalendarScreen to colour-code Google calendars, which have no colour field of their own. */
+fun String.hashToPaletteColor(): String {
     val index = fold(0) { acc, c -> acc + c.code }.mod(CategoryPalette.size)
     return CategoryPalette[index]
 }
@@ -143,6 +143,24 @@ data class CreateTaskRequest(
     val recurrenceUnit: RecurrenceUnit? = null,
     val recurrenceBase: RecurrenceBase = RecurrenceBase.DUE_DATE,
     val repeatsManually: Boolean = false,
+    val followUpTaskId: Long? = null,
+    val followUpOffsetDays: Int? = null,
+    val queuePosition: Int? = null,
+)
+
+@Serializable
+data class UpdateTaskRequest(
+    val name: String? = null,
+    val taskCategoryId: Long? = null,
+    val subcategoryId: Long? = null,
+    val personId: Long? = null,
+    val linkedEvent: String? = null,
+    val dueDate: String? = null,
+    val durationMinutes: Int? = null,
+    val recurrenceInterval: Int? = null,
+    val recurrenceUnit: RecurrenceUnit? = null,
+    val recurrenceBase: RecurrenceBase? = null,
+    val repeatsManually: Boolean? = null,
     val followUpTaskId: Long? = null,
     val followUpOffsetDays: Int? = null,
     val queuePosition: Int? = null,

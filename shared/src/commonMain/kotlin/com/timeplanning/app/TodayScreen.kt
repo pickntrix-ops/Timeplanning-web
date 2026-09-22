@@ -20,7 +20,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlin.time.Clock
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
@@ -78,10 +76,10 @@ private fun dueDateLabel(task: Task, today: LocalDate): String {
 fun TodayScreen(
     apiClient: ApiClient,
     sessionToken: String,
+    currentTab: BottomTab,
+    onSelectTab: (BottomTab) -> Unit,
     onAddTask: () -> Unit,
-    onOpenCalendar: () -> Unit,
-    onOpenTaskCategories: () -> Unit,
-    onSignOut: () -> Unit,
+    onOpenTask: (Task, String?) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val today = remember { Clock.System.todayIn(TimeZone.currentSystemDefault()) }
@@ -122,6 +120,7 @@ fun TodayScreen(
                 Text("+", style = MaterialTheme.typography.headlineSmall)
             }
         },
+        bottomBar = { BottomNavBar(current = currentTab, onSelect = onSelectTab) },
     ) { padding ->
         Column(modifier = Modifier.safeContentPadding().padding(padding).fillMaxSize()) {
             Row(
@@ -130,19 +129,6 @@ fun TodayScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Today — $today", style = MaterialTheme.typography.headlineSmall)
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onOpenTaskCategories) { Text("Categories") }
-                TextButton(onClick = onOpenCalendar) { Text("Calendar") }
-                Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onSignOut) {
-                        Text("Sign out", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                    }
-                }
             }
 
             if (loading) {
@@ -166,12 +152,18 @@ fun TodayScreen(
                     }
                     items(groupTasks) { task ->
                         val colorHex = categoryColors[task.taskCategoryId]
-                        TaskRow(task, dueDateLabel(task, today), colorHex) {
-                            scope.launch {
-                                runCatching { apiClient.completeTask(sessionToken, task.id) }
-                                refresh()
-                            }
-                        }
+                        TaskRow(
+                            task = task,
+                            dueLabel = dueDateLabel(task, today),
+                            categoryColorHex = colorHex,
+                            onOpen = { onOpenTask(task, colorHex) },
+                            onComplete = {
+                                scope.launch {
+                                    runCatching { apiClient.completeTask(sessionToken, task.id) }
+                                    refresh()
+                                }
+                            },
+                        )
                     }
                 }
 
@@ -184,9 +176,9 @@ fun TodayScreen(
 }
 
 @Composable
-private fun TaskRow(task: Task, dueLabel: String, categoryColorHex: String?, onComplete: (Task) -> Unit) {
+private fun TaskRow(task: Task, dueLabel: String, categoryColorHex: String?, onOpen: () -> Unit, onComplete: (Task) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

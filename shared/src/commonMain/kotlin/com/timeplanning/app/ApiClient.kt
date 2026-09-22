@@ -95,6 +95,19 @@ class ApiClient {
             header("Authorization", "Bearer $sessionToken")
         }.body()
 
+    suspend fun updateTask(sessionToken: String, taskId: Long, request: UpdateTaskRequest): Task =
+        client.patch("$BASE_URL/tasks/$taskId") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
+
+    suspend fun deleteTask(sessionToken: String, taskId: Long) {
+        client.delete("$BASE_URL/tasks/$taskId") {
+            header("Authorization", "Bearer $sessionToken")
+        }
+    }
+
     suspend fun fetchCalendarEvents(sessionToken: String, start: String, end: String): List<CalendarEventInfo> =
         client.get("$BASE_URL/calendar/events") {
             header("Authorization", "Bearer $sessionToken")
