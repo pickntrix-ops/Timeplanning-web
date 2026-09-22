@@ -9,6 +9,7 @@ sealed class Screen {
     data class TaskDetail(val task: Task, val categoryColor: String?) : Screen()
     data object Calendar : Screen()
     data object TaskCategories : Screen()
+    data class CategoryDetail(val categoryId: Long) : Screen()
     data object Account : Screen()
 }
 

@@ -159,6 +159,23 @@ fun App() {
                         sessionToken = token,
                         currentTab = BottomTab.CATEGORIES,
                         onSelectTab = ::onSelectTab,
+                        onOpenCategory = { category -> screen = Screen.CategoryDetail(category.id) },
+                    )
+                }
+            }
+
+            is Screen.CategoryDetail -> {
+                val token = sessionToken
+                if (token == null) {
+                    screen = Screen.SignIn
+                } else {
+                    CategoryDetailScreen(
+                        apiClient = apiClient,
+                        sessionToken = token,
+                        categoryId = current.categoryId,
+                        onBack = { screen = Screen.TaskCategories },
+                        onDeleted = { screen = Screen.TaskCategories },
+                        onOpenTask = { task, color -> screen = Screen.TaskDetail(task, color) },
                     )
                 }
             }

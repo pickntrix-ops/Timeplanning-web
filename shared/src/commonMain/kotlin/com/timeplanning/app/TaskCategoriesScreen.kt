@@ -49,11 +49,18 @@ import kotlinx.coroutines.launch
  * "Cleaning", "Job", "Etsy Orders") with its own default settings, and
  * private subcategories that can each override those defaults (e.g.
  * "Project" defaults ordered=true, its "Etsy Prints" subcategory overrides
- * that back to false).
+ * that back to false). This is just the flat list — tapping a category
+ * opens CategoryDetailScreen for its colour/subcategories/linked tasks.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaskCategoriesScreen(apiClient: ApiClient, sessionToken: String, currentTab: BottomTab, onSelectTab: (BottomTab) -> Unit) {
+fun TaskCategoriesScreen(
+    apiClient: ApiClient,
+    sessionToken: String,
+    currentTab: BottomTab,
+    onSelectTab: (BottomTab) -> Unit,
+    onOpenCategory: (TaskCategory) -> Unit,
+) {
     val scope = rememberCoroutineScope()
 
     var loading by remember { mutableStateOf(true) }
@@ -61,7 +68,6 @@ fun TaskCategoriesScreen(apiClient: ApiClient, sessionToken: String, currentTab:
     var categories by remember { mutableStateOf<List<TaskCategory>>(emptyList()) }
     var refreshKey by remember { mutableStateOf(0) }
     var showAddCategory by remember { mutableStateOf(false) }
-    var expandedCategoryId by remember { mutableStateOf<Long?>(null) }
     var busy by remember { mutableStateOf(false) }
 
     LaunchedEffect(refreshKey) {
@@ -101,7 +107,7 @@ fun TaskCategoriesScreen(apiClient: ApiClient, sessionToken: String, currentTab:
             }
         }
 
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (showAddCategory) {
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
@@ -125,48 +131,7 @@ fun TaskCategoriesScreen(apiClient: ApiClient, sessionToken: String, currentTab:
             }
 
             items(categories) { category ->
-                CategoryCard(
-                    category = category,
-                    expanded = expandedCategoryId == category.id,
-                    busy = busy,
-                    onToggleExpanded = { expandedCategoryId = if (expandedCategoryId == category.id) null else category.id },
-                    onDeleteCategory = {
-                        busy = true
-                        scope.launch {
-                            runCatching { apiClient.deleteTaskCategory(sessionToken, category.id) }
-                                .onFailure { error = "Couldn't delete category: ${it.message}" }
-                            busy = false
-                            refresh()
-                        }
-                    },
-                    onChangeColor = { hex ->
-                        busy = true
-                        scope.launch {
-                            runCatching { apiClient.updateTaskCategory(sessionToken, category.id, UpdateTaskCategoryRequest(color = hex)) }
-                                .onFailure { error = "Couldn't update colour: ${it.message}" }
-                            busy = false
-                            refresh()
-                        }
-                    },
-                    onAddSubcategory = { request ->
-                        busy = true
-                        scope.launch {
-                            runCatching { apiClient.createTaskSubcategory(sessionToken, category.id, request) }
-                                .onFailure { error = "Couldn't add subcategory: ${it.message}" }
-                            busy = false
-                            refresh()
-                        }
-                    },
-                    onDeleteSubcategory = { subcategoryId ->
-                        busy = true
-                        scope.launch {
-                            runCatching { apiClient.deleteTaskSubcategory(sessionToken, category.id, subcategoryId) }
-                                .onFailure { error = "Couldn't delete subcategory: ${it.message}" }
-                            busy = false
-                            refresh()
-                        }
-                    },
-                )
+                CategoryRow(category = category, onClick = { onOpenCategory(category) })
             }
 
             if (!loading && categories.isEmpty()) {
@@ -178,74 +143,34 @@ fun TaskCategoriesScreen(apiClient: ApiClient, sessionToken: String, currentTab:
 }
 
 @Composable
-private fun CategoryCard(
-    category: TaskCategory,
-    expanded: Boolean,
-    busy: Boolean,
-    onToggleExpanded: () -> Unit,
-    onDeleteCategory: () -> Unit,
-    onChangeColor: (String) -> Unit,
-    onAddSubcategory: (CreateTaskSubcategoryRequest) -> Unit,
-    onDeleteSubcategory: (Long) -> Unit,
-) {
-    var showAddSubcategory by remember { mutableStateOf(false) }
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onToggleExpanded),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(modifier = Modifier.size(14.dp).clip(CircleShape).background(category.displayColor.toColorOrNull() ?: Color.Gray))
-                    Column {
-                        Text(category.name, style = MaterialTheme.typography.titleMedium)
-                        Text(category.defaultRecurrenceBase.label(), style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-                TextButton(onClick = onDeleteCategory, enabled = !busy) { Text("Delete") }
-            }
-
-            val flags = buildList {
-                if (category.ordered) add("Ordered")
-                if (category.linksToPerson) add("Links to person")
-                if (category.linksToEvent) add("Links to event")
-            }
-            if (flags.isNotEmpty()) {
-                Row(modifier = Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    flags.forEach { FlagBadge(it) }
-                }
-            }
-
-            if (expanded) {
-                Column(Modifier.padding(top = 8.dp)) {
-                    Text("Colour", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ColorSwatchPicker(selected = category.displayColor, onSelect = onChangeColor, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
-
-                    category.subcategories.forEach { sub ->
-                        SubcategoryRow(sub, category, busy, onDelete = { onDeleteSubcategory(sub.id) })
-                    }
-
-                    TextButton(onClick = { showAddSubcategory = !showAddSubcategory }) {
-                        Text(if (showAddSubcategory) "Cancel" else "+ Add subcategory")
-                    }
-
-                    if (showAddSubcategory) {
-                        AddSubcategoryForm(
-                            category = category,
-                            busy = busy,
-                            onAdd = { request -> onAddSubcategory(request); showAddSubcategory = false },
-                        )
-                    }
-                }
-            }
+private fun CategoryRow(category: TaskCategory, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.size(14.dp).clip(CircleShape).background(category.displayColor.toColorOrNull() ?: Color.Gray))
+        Column(Modifier.weight(1f)) {
+            Text(category.name, style = MaterialTheme.typography.titleMedium)
+            val subCount = category.subcategories.size
+            Text(
+                if (subCount == 0) category.defaultRecurrenceBase.label() else "$subCount subcategor${if (subCount == 1) "y" else "ies"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
         }
+        Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun FlagBadge(label: String) {
+internal fun FlagBadge(label: String) {
     Text(
         label,
         style = MaterialTheme.typography.labelSmall,
@@ -257,7 +182,7 @@ private fun FlagBadge(label: String) {
 }
 
 @Composable
-private fun ColorSwatchPicker(selected: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun ColorSwatchPicker(selected: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         CategoryPalette.forEach { hex ->
             val color = hex.toColorOrNull() ?: Color.Gray
@@ -270,30 +195,6 @@ private fun ColorSwatchPicker(selected: String, onSelect: (String) -> Unit, modi
                     )
                     .clickable { onSelect(hex) },
             ) {}
-        }
-    }
-}
-
-@Composable
-private fun SubcategoryRow(sub: TaskSubcategory, category: TaskCategory, busy: Boolean, onDelete: () -> Unit) {
-    Column(Modifier.padding(vertical = 6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("${sub.name} (priority ${sub.priority})", style = MaterialTheme.typography.bodyMedium)
-            TextButton(onClick = onDelete, enabled = !busy) { Text("Remove") }
-        }
-        val resolvedFlags = buildList {
-            if (sub.ordered ?: category.ordered) add("Ordered")
-            if (sub.linksToPerson ?: category.linksToPerson) add("Links to person")
-            if (sub.linksToEvent ?: category.linksToEvent) add("Links to event")
-        }
-        if (resolvedFlags.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                resolvedFlags.forEach { FlagBadge(it) }
-            }
         }
     }
 }
@@ -347,50 +248,6 @@ private fun AddCategoryForm(busy: Boolean, onAdd: (CreateTaskCategoryRequest) ->
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AddSubcategoryForm(category: TaskCategory, busy: Boolean, onAdd: (CreateTaskSubcategoryRequest) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var priority by remember { mutableStateOf("0") }
-    var ordered by remember { mutableStateOf<Boolean?>(null) }
-    var linksToPerson by remember { mutableStateOf<Boolean?>(null) }
-    var linksToEvent by remember { mutableStateOf<Boolean?>(null) }
-
-    Column(modifier = Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text("Subcategory name") },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = priority,
-            onValueChange = { priority = it.filter { c -> c.isDigit() } },
-            label = { Text("Priority (lower goes first)") },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        TriStateRow("Worked in order", ordered, category.ordered) { ordered = it }
-        TriStateRow("Links to a person", linksToPerson, category.linksToPerson) { linksToPerson = it }
-        TriStateRow("Links to an event", linksToEvent, category.linksToEvent) { linksToEvent = it }
-
-        Button(
-            enabled = name.isNotBlank() && !busy,
-            onClick = {
-                onAdd(
-                    CreateTaskSubcategoryRequest(
-                        name = name,
-                        priority = priority.toIntOrNull() ?: 0,
-                        ordered = ordered,
-                        linksToPerson = linksToPerson,
-                        linksToEvent = linksToEvent,
-                    )
-                )
-            },
-        ) { Text("Add subcategory") }
-    }
-}
-
 @Composable
 private fun CheckboxRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -401,7 +258,7 @@ private fun CheckboxRow(label: String, checked: Boolean, onCheckedChange: (Boole
 
 /** A 3-way inherit/on/off control — null means "inherit the category's default", shown alongside for context. */
 @Composable
-private fun TriStateRow(label: String, value: Boolean?, categoryDefault: Boolean, onChange: (Boolean?) -> Unit) {
+internal fun TriStateRow(label: String, value: Boolean?, categoryDefault: Boolean, onChange: (Boolean?) -> Unit) {
     Column(Modifier.padding(vertical = 4.dp)) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
