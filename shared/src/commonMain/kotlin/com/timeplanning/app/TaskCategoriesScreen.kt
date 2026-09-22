@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -85,7 +84,7 @@ fun TaskCategoriesScreen(
         containerColor = MaterialTheme.colorScheme.surface,
         bottomBar = { BottomNavBar(current = currentTab, onSelect = onSelectTab) },
     ) { padding ->
-    Column(modifier = Modifier.safeContentPadding().padding(padding).fillMaxSize()) {
+    Column(modifier = Modifier.padding(padding).fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,

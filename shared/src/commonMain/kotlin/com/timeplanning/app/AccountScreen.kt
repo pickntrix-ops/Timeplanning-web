@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -23,7 +22,7 @@ fun AccountScreen(currentTab: BottomTab, onSelectTab: (BottomTab) -> Unit, onSig
         bottomBar = { BottomNavBar(current = currentTab, onSelect = onSelectTab) },
     ) { padding ->
         Column(
-            modifier = Modifier.safeContentPadding().padding(padding).fillMaxSize().padding(16.dp),
+            modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text("Account", style = MaterialTheme.typography.headlineSmall)

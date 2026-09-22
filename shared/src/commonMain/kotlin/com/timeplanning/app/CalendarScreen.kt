@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -111,7 +110,7 @@ fun CalendarScreen(apiClient: ApiClient, sessionToken: String, currentTab: Botto
         containerColor = MaterialTheme.colorScheme.surface,
         bottomBar = { BottomNavBar(current = currentTab, onSelect = onSelectTab) },
     ) { padding ->
-    Column(modifier = Modifier.safeContentPadding().padding(padding).fillMaxSize()) {
+    Column(modifier = Modifier.padding(padding).fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
