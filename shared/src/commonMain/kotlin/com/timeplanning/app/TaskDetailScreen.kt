@@ -9,10 +9,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -83,10 +84,12 @@ fun TaskDetailScreen(
         }
     }
 
-    Column(modifier = Modifier.safeContentPadding().fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // The header bleeds to the true screen edges (including under the status bar) —
+        // only the buttons sitting on top of it need to clear the status bar themselves.
         Box(modifier = Modifier.fillMaxWidth().height(160.dp).background(accent)) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 RoundIconButton("←", onClick = onBack)
@@ -148,7 +151,7 @@ fun TaskDetailScreen(
             if (busy) CircularProgressIndicator(modifier = Modifier.size(20.dp))
         }
 
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
             Button(
                 onClick = { onEdit(task) },
                 enabled = !busy,

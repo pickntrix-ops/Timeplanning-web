@@ -9,10 +9,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -62,6 +63,7 @@ fun CategoryDetailScreen(
     var busy by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
     var showAddSubcategory by remember { mutableStateOf(false) }
+    var editingCategory by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableStateOf(0) }
 
     LaunchedEffect(refreshKey) {
@@ -83,16 +85,25 @@ fun CategoryDetailScreen(
     val current = category
     val accent = current?.displayColor?.toColorOrNull() ?: MaterialTheme.colorScheme.primary
 
-    Column(modifier = Modifier.safeContentPadding().fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // The header bleeds to the true screen edges (including under the status bar) —
+        // only the buttons sitting on top of it need to clear the status bar themselves.
         Box(modifier = Modifier.fillMaxWidth().height(140.dp).background(accent)) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 RoundIconButton("←", onClick = onBack)
                 Box {
                     RoundIconButton("⋯", onClick = { menuExpanded = true })
                     DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Edit category") },
+                            onClick = {
+                                menuExpanded = false
+                                editingCategory = true
+                            },
+                        )
                         DropdownMenuItem(
                             text = { Text("Delete category") },
                             onClick = {
@@ -123,7 +134,8 @@ fun CategoryDetailScreen(
                     .verticalScroll(rememberScrollState())
                     .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                     .background(MaterialTheme.colorScheme.surface)
-                    .padding(20.dp),
+                    .padding(20.dp)
+                    .navigationBarsPadding(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 val flags = buildList {
@@ -144,66 +156,101 @@ fun CategoryDetailScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Colour", style = MaterialTheme.typography.titleSmall)
-                    ColorSwatchPicker(
-                        selected = current.displayColor,
-                        onSelect = { hex ->
-                            busy = true
-                            scope.launch {
-                                runCatching { apiClient.updateTaskCategory(sessionToken, categoryId, UpdateTaskCategoryRequest(color = hex)) }
-                                    .onFailure { error = "Couldn't update colour: ${it.message}" }
-                                busy = false
-                                refresh()
-                            }
-                        },
-                    )
-                }
+                if (editingCategory) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(accent.copy(alpha = 0.08f))
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("Edit category", style = MaterialTheme.typography.titleMedium)
+                            TextButton(onClick = { editingCategory = false; showAddSubcategory = false }) { Text("Done") }
+                        }
 
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Subcategories", style = MaterialTheme.typography.titleSmall)
-                    if (current.subcategories.isEmpty()) {
-                        Text(
-                            "No subcategories yet.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Colour", style = MaterialTheme.typography.labelLarge)
+                            ColorSwatchPicker(
+                                selected = current.displayColor,
+                                onSelect = { hex ->
+                                    busy = true
+                                    scope.launch {
+                                        runCatching { apiClient.updateTaskCategory(sessionToken, categoryId, UpdateTaskCategoryRequest(color = hex)) }
+                                            .onFailure { error = "Couldn't update colour: ${it.message}" }
+                                        busy = false
+                                        refresh()
+                                    }
+                                },
+                            )
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Subcategories", style = MaterialTheme.typography.labelLarge)
+                            if (current.subcategories.isEmpty()) {
+                                Text(
+                                    "No subcategories yet.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            current.subcategories.forEach { sub ->
+                                SubcategoryRow(
+                                    sub = sub,
+                                    category = current,
+                                    accent = accent,
+                                    busy = busy,
+                                    editable = true,
+                                    onDelete = {
+                                        busy = true
+                                        scope.launch {
+                                            runCatching { apiClient.deleteTaskSubcategory(sessionToken, categoryId, sub.id) }
+                                                .onFailure { error = "Couldn't delete subcategory: ${it.message}" }
+                                            busy = false
+                                            refresh()
+                                        }
+                                    },
+                                )
+                            }
+                            TextButton(onClick = { showAddSubcategory = !showAddSubcategory }) {
+                                Text(if (showAddSubcategory) "Cancel" else "+ Add subcategory")
+                            }
+                            if (showAddSubcategory) {
+                                AddSubcategoryForm(
+                                    category = current,
+                                    busy = busy,
+                                    onAdd = { request ->
+                                        busy = true
+                                        scope.launch {
+                                            runCatching { apiClient.createTaskSubcategory(sessionToken, categoryId, request) }
+                                                .onFailure { error = "Couldn't add subcategory: ${it.message}" }
+                                            busy = false
+                                            showAddSubcategory = false
+                                            refresh()
+                                        }
+                                    },
+                                )
+                            }
+                        }
                     }
-                    current.subcategories.forEach { sub ->
-                        SubcategoryRow(
-                            sub = sub,
-                            category = current,
-                            accent = accent,
-                            busy = busy,
-                            onDelete = {
-                                busy = true
-                                scope.launch {
-                                    runCatching { apiClient.deleteTaskSubcategory(sessionToken, categoryId, sub.id) }
-                                        .onFailure { error = "Couldn't delete subcategory: ${it.message}" }
-                                    busy = false
-                                    refresh()
-                                }
-                            },
-                        )
-                    }
-                    TextButton(onClick = { showAddSubcategory = !showAddSubcategory }) {
-                        Text(if (showAddSubcategory) "Cancel" else "+ Add subcategory")
-                    }
-                    if (showAddSubcategory) {
-                        AddSubcategoryForm(
-                            category = current,
-                            busy = busy,
-                            onAdd = { request ->
-                                busy = true
-                                scope.launch {
-                                    runCatching { apiClient.createTaskSubcategory(sessionToken, categoryId, request) }
-                                        .onFailure { error = "Couldn't add subcategory: ${it.message}" }
-                                    busy = false
-                                    showAddSubcategory = false
-                                    refresh()
-                                }
-                            },
-                        )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Subcategories", style = MaterialTheme.typography.titleSmall)
+                        if (current.subcategories.isEmpty()) {
+                            Text(
+                                "No subcategories yet.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        current.subcategories.forEach { sub ->
+                            SubcategoryRow(sub = sub, category = current, accent = accent, busy = busy, editable = false, onDelete = {})
+                        }
                     }
                 }
 
@@ -238,7 +285,7 @@ private fun RoundIconButton(glyph: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SubcategoryRow(sub: TaskSubcategory, category: TaskCategory, accent: Color, busy: Boolean, onDelete: () -> Unit) {
+private fun SubcategoryRow(sub: TaskSubcategory, category: TaskCategory, accent: Color, busy: Boolean, editable: Boolean, onDelete: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -252,7 +299,7 @@ private fun SubcategoryRow(sub: TaskSubcategory, category: TaskCategory, accent:
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("${sub.name} (priority ${sub.priority})", style = MaterialTheme.typography.bodyMedium)
-            TextButton(onClick = onDelete, enabled = !busy) { Text("Remove") }
+            if (editable) TextButton(onClick = onDelete, enabled = !busy) { Text("Remove") }
         }
         val resolvedFlags = buildList {
             if (sub.ordered ?: category.ordered) add("Ordered")
