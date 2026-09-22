@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,7 +39,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+
+/** Fires a single-field category update (colour, a flag, ...) with shared busy/error/refresh plumbing. */
+private fun updateFlag(
+    scope: CoroutineScope,
+    apiClient: ApiClient,
+    sessionToken: String,
+    categoryId: Long,
+    request: UpdateTaskCategoryRequest,
+    onBusy: (Boolean) -> Unit,
+    onError: (String) -> Unit,
+    onDone: () -> Unit,
+) {
+    onBusy(true)
+    scope.launch {
+        runCatching { apiClient.updateTaskCategory(sessionToken, categoryId, request) }
+            .onFailure { onError("Couldn't update category: ${it.message}") }
+        onBusy(false)
+        onDone()
+    }
+}
 
 /**
  * Everything about one category in one place: its colour and default flags,
@@ -138,6 +160,8 @@ fun CategoryDetailScreen(
                     .navigationBarsPadding(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                Text(current.name, style = MaterialTheme.typography.headlineSmall)
+
                 val flags = buildList {
                     if (current.ordered) add("Ordered")
                     if (current.linksToPerson) add("Links to person")
@@ -149,7 +173,6 @@ fun CategoryDetailScreen(
                     }
                 }
 
-                Text(current.name, style = MaterialTheme.typography.headlineSmall)
                 Text(
                     current.defaultRecurrenceBase.label(),
                     style = MaterialTheme.typography.bodyMedium,
@@ -188,6 +211,21 @@ fun CategoryDetailScreen(
                                     }
                                 },
                             )
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Settings", style = MaterialTheme.typography.labelLarge)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SelectableChip("Ordered", current.ordered) {
+                                    updateFlag(scope, apiClient, sessionToken, categoryId, UpdateTaskCategoryRequest(ordered = !current.ordered), onBusy = { busy = it }, onError = { error = it }, onDone = ::refresh)
+                                }
+                                SelectableChip("Links to person", current.linksToPerson) {
+                                    updateFlag(scope, apiClient, sessionToken, categoryId, UpdateTaskCategoryRequest(linksToPerson = !current.linksToPerson), onBusy = { busy = it }, onError = { error = it }, onDone = ::refresh)
+                                }
+                                SelectableChip("Links to event", current.linksToEvent) {
+                                    updateFlag(scope, apiClient, sessionToken, categoryId, UpdateTaskCategoryRequest(linksToEvent = !current.linksToEvent), onBusy = { busy = it }, onError = { error = it }, onDone = ::refresh)
+                                }
+                            }
                         }
 
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
