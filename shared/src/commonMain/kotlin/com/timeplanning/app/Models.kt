@@ -125,6 +125,7 @@ data class Task(
     val recurrenceBase: RecurrenceBase = RecurrenceBase.DUE_DATE,
     val repeatsManually: Boolean = false,
     val followUpTaskId: Long? = null,
+    val followUpTaskName: String? = null,
     val followUpOffsetDays: Int? = null,
     val rolloverCount: Int = 0,
     val queuePosition: Int? = null,

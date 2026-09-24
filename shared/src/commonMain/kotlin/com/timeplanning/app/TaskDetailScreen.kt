@@ -145,6 +145,14 @@ fun TaskDetailScreen(
                 DetailRow("When completed", completionSummary(task), accent)
                 if (task.queuePosition != null) DetailRow("Order", task.queuePosition.toString(), accent)
                 if (task.rolloverCount > 0) DetailRow("Rolled over", "${task.rolloverCount} time(s)", accent)
+                if (task.followUpTaskName != null) {
+                    val offset = task.followUpOffsetDays
+                    DetailRow(
+                        "Then",
+                        "${task.followUpTaskName}${if (offset != null) " ($offset day${if (offset == 1) "" else "s"} later)" else ""}",
+                        accent,
+                    )
+                }
             }
 
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }

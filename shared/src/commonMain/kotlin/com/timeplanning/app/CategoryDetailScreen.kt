@@ -346,7 +346,7 @@ private fun SubcategoryRow(sub: TaskSubcategory, category: TaskCategory, accent:
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("${sub.name} (priority ${sub.priority})", style = MaterialTheme.typography.bodyMedium)
+            Text(sub.name, style = MaterialTheme.typography.bodyMedium)
             if (editable) TextButton(onClick = onDelete, enabled = !busy) { Text("Remove") }
         }
         val resolvedFlags = buildList {
@@ -393,7 +393,6 @@ private fun LinkedTaskRow(task: Task, accent: Color, onClick: () -> Unit) {
 @Composable
 private fun AddSubcategoryForm(category: TaskCategory, busy: Boolean, onAdd: (CreateTaskSubcategoryRequest) -> Unit) {
     var name by remember { mutableStateOf("") }
-    var priority by remember { mutableStateOf("0") }
     var ordered by remember { mutableStateOf<Boolean?>(null) }
     var linksToPerson by remember { mutableStateOf<Boolean?>(null) }
     var linksToEvent by remember { mutableStateOf<Boolean?>(null) }
@@ -403,12 +402,6 @@ private fun AddSubcategoryForm(category: TaskCategory, busy: Boolean, onAdd: (Cr
             value = name,
             onValueChange = { name = it },
             label = { Text("Subcategory name") },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = priority,
-            onValueChange = { priority = it.filter { c -> c.isDigit() } },
-            label = { Text("Priority (lower goes first)") },
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -422,7 +415,6 @@ private fun AddSubcategoryForm(category: TaskCategory, busy: Boolean, onAdd: (Cr
                 onAdd(
                     CreateTaskSubcategoryRequest(
                         name = name,
-                        priority = priority.toIntOrNull() ?: 0,
                         ordered = ordered,
                         linksToPerson = linksToPerson,
                         linksToEvent = linksToEvent,
