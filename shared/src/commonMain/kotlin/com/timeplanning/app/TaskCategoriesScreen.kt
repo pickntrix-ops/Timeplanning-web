@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -236,22 +235,17 @@ private fun AddCategoryForm(busy: Boolean, onAdd: (CreateTaskCategoryRequest) ->
             }
         }
 
-        CheckboxRow("Worked in order (a strict sequence)", ordered) { ordered = it }
-        CheckboxRow("Usually links to a person", linksToPerson) { linksToPerson = it }
-        CheckboxRow("Usually links to an event", linksToEvent) { linksToEvent = it }
+        Text("Settings", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SelectableChip("Ordered", ordered) { ordered = !ordered }
+            SelectableChip("Links to person", linksToPerson) { linksToPerson = !linksToPerson }
+            SelectableChip("Links to event", linksToEvent) { linksToEvent = !linksToEvent }
+        }
 
         Button(
             enabled = name.isNotBlank() && !busy,
             onClick = { onAdd(CreateTaskCategoryRequest(name, recurrenceBase, ordered, linksToPerson, linksToEvent, color)) },
         ) { Text("Add category") }
-    }
-}
-
-@Composable
-private fun CheckboxRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = checked, onCheckedChange = onCheckedChange)
-        Text(label)
     }
 }
 
