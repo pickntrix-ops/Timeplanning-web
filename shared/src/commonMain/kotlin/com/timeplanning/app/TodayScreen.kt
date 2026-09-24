@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
@@ -106,11 +107,16 @@ fun TodayScreen(
     fun refresh() { refreshKey++ }
 
     // toSortedMap() is JVM-only (java.util.SortedMap) — sort a List<Pair<...>> instead, same fix as CalendarScreen.kt.
+    // No-date tasks aren't listed here — they'd otherwise dominate the screen as a flat backlog.
+    // Instead a dismissible-feeling warning banner points at the Tasks tab, where they're still
+    // visible via each category's linked-tasks list.
     val grouped = remember(tasks) {
         tasks.groupBy { dueGroupFor(it, today) }
+            .filterKeys { it != DueGroup.NO_DATE }
             .toList()
             .sortedBy { (group, _) -> group.ordinal }
     }
+    val noDateCount = remember(tasks) { tasks.count { it.dueDate == null } }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -128,6 +134,28 @@ fun TodayScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Today — $today", style = MaterialTheme.typography.headlineSmall)
+            }
+
+            if (noDateCount > 0) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.errorContainer)
+                        .clickable(onClick = { onSelectTab(BottomTab.CATEGORIES) })
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("⚠️", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "$noDateCount task${if (noDateCount == 1) "" else "s"} with no due date — see Tasks",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
 
             if (loading) {

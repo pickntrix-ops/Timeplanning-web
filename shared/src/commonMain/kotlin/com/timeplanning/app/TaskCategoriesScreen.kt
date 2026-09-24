@@ -89,7 +89,7 @@ fun TaskCategoriesScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Task Categories", style = MaterialTheme.typography.headlineSmall)
+            Text("Tasks", style = MaterialTheme.typography.headlineSmall)
         }
 
         if (loading) CircularProgressIndicator(modifier = Modifier.padding(16.dp))
@@ -153,16 +153,7 @@ private fun CategoryRow(category: TaskCategory, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(modifier = Modifier.size(14.dp).clip(CircleShape).background(category.displayColor.toColorOrNull() ?: Color.Gray))
-        Column(Modifier.weight(1f)) {
-            Text(category.name, style = MaterialTheme.typography.titleMedium)
-            val subCount = category.subcategories.size
-            Text(
-                if (subCount == 0) category.defaultRecurrenceBase.label() else "$subCount subcategor${if (subCount == 1) "y" else "ies"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-        }
+        Text(category.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

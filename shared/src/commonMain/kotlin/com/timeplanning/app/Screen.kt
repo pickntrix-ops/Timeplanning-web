@@ -17,6 +17,6 @@ sealed class Screen {
 enum class BottomTab(val label: String) {
     TODAY("Today"),
     CALENDAR("Calendar"),
-    CATEGORIES("Categories"),
+    CATEGORIES("Tasks"),
     ACCOUNT("Account"),
 }

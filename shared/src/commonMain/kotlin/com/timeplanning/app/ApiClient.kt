@@ -2,6 +2,7 @@ package com.timeplanning.app
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -11,11 +12,14 @@ import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.parameter
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 private const val BASE_URL = "https://api.pickntrix-themeparks.com/timeplanning/api/v1"
 
@@ -50,6 +54,11 @@ data class SessionResponse(val sessionToken: String, val email: String, val disp
  */
 class ApiClient {
     private val client = HttpClient {
+        // Without this, a non-2xx response (e.g. the server's 400 when a delete is
+        // blocked) doesn't throw — the call just "succeeds" with an unread error
+        // body, so every runCatching { ... }.onFailure { } in this app was silently
+        // treating real server errors as success.
+        expectSuccess = true
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }
@@ -177,4 +186,19 @@ class ApiClient {
             contentType(ContentType.Application.Json)
             setBody(CreatePersonRequest(name))
         }.body()
+}
+
+/**
+ * The server's {"error": "..."} body reads much better than Ktor's own verbose
+ * exception text (which wraps the whole response) — falls back to that when
+ * there's no such body (a network failure, an unexpected response shape, ...).
+ */
+suspend fun Throwable.serverMessage(): String {
+    if (this is ResponseException) {
+        val fromBody = runCatching {
+            Json.parseToJsonElement(response.bodyAsText()).jsonObject["error"]?.jsonPrimitive?.content
+        }.getOrNull()
+        if (fromBody != null) return fromBody
+    }
+    return message ?: "Something went wrong"
 }

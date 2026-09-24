@@ -132,9 +132,9 @@ fun CategoryDetailScreen(
                                 menuExpanded = false
                                 busy = true
                                 scope.launch {
-                                    runCatching { apiClient.deleteTaskCategory(sessionToken, categoryId) }
-                                        .onSuccess { onDeleted() }
-                                        .onFailure { error = "Couldn't delete category: ${it.message}" }
+                                    val result = runCatching { apiClient.deleteTaskCategory(sessionToken, categoryId) }
+                                    result.onSuccess { onDeleted() }
+                                    result.exceptionOrNull()?.let { error = it.serverMessage() }
                                     busy = false
                                 }
                             },
@@ -161,6 +161,18 @@ fun CategoryDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text(current.name, style = MaterialTheme.typography.headlineSmall)
+
+                error?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(10.dp))
+                            .padding(12.dp),
+                    )
+                }
 
                 val flags = buildList {
                     if (current.ordered) add("Ordered")
@@ -305,8 +317,6 @@ fun CategoryDetailScreen(
                         LinkedTaskRow(task = task, accent = accent, onClick = { onOpenTask(task, current.displayColor) })
                     }
                 }
-
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
         }
     }
