@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -20,13 +21,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/** The persistent bottom tab bar shared by the four top-level screens (Today/Calendar/Categories/Account) — modal-style screens like Add/Edit Task and Task Detail don't show it. */
+private fun BottomTab.glyph(): WizardGlyph = when (this) {
+    BottomTab.TODAY -> WizardGlyph.CHECK_CIRCLE
+    BottomTab.CALENDAR -> WizardGlyph.CALENDAR
+    BottomTab.PLAN -> WizardGlyph.CLOCK
+    BottomTab.CATEGORIES -> WizardGlyph.LIST
+    BottomTab.ACCOUNT -> WizardGlyph.PERSON
+}
+
+/** The persistent bottom tab bar shared by the five top-level screens (Today/Calendar/Plan/Categories/Account) — modal-style screens like Add/Edit Task and Task Detail don't show it. */
 @Composable
 fun BottomNavBar(current: BottomTab, onSelect: (BottomTab) -> Unit) {
     Column {
         Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             BottomTab.entries.forEach { tab ->
@@ -38,14 +47,16 @@ fun BottomNavBar(current: BottomTab, onSelect: (BottomTab) -> Unit) {
                         .clip(RoundedCornerShape(14.dp))
                         .background(background)
                         .clickable(onClick = { onSelect(tab) })
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    WizardIconGlyph(tab.glyph(), foreground, Modifier.size(20.dp))
                     Text(
                         tab.label,
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelSmall,
                         color = foreground,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             }

@@ -228,7 +228,7 @@ private fun TaskRow(task: Task, dueLabel: String, categoryColorHex: String?, onO
 }
 
 @Composable
-private fun CompleteCheckbox(onClick: () -> Unit) {
+internal fun CompleteCheckbox(onClick: () -> Unit) {
     Box(
         modifier = Modifier.size(24.dp)
             .clip(CircleShape)

@@ -156,6 +156,14 @@ class ApiClient {
             setBody(request)
         }.body()
 
+    /** A prefilled, always-overridable guess — never applied without the person seeing/confirming it client-side. Null if suggestions aren't set up on the server, or the model's answer was unusable. */
+    suspend fun suggestCategoryEnergyLevel(sessionToken: String, name: String, description: String?): EnergyLevel? =
+        client.post("$BASE_URL/task-categories/suggest-energy-level") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(SuggestEnergyLevelRequest(name, description))
+        }.body<SuggestEnergyLevelResponse>().energyLevel
+
     suspend fun deleteTaskCategory(sessionToken: String, categoryId: Long) {
         client.delete("$BASE_URL/task-categories/$categoryId") {
             header("Authorization", "Bearer $sessionToken")
@@ -169,11 +177,54 @@ class ApiClient {
             setBody(request)
         }.body()
 
+    suspend fun updateTaskSubcategory(sessionToken: String, categoryId: Long, subcategoryId: Long, request: UpdateTaskSubcategoryRequest): TaskSubcategory =
+        client.patch("$BASE_URL/task-categories/$categoryId/subcategories/$subcategoryId") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
+
     suspend fun deleteTaskSubcategory(sessionToken: String, categoryId: Long, subcategoryId: Long) {
         client.delete("$BASE_URL/task-categories/$categoryId/subcategories/$subcategoryId") {
             header("Authorization", "Bearer $sessionToken")
         }
     }
+
+    suspend fun fetchDayProfiles(sessionToken: String): List<DayProfile> =
+        client.get("$BASE_URL/day-profiles") {
+            header("Authorization", "Bearer $sessionToken")
+        }.body()
+
+    suspend fun updateDayProfile(sessionToken: String, dayType: DayType, request: UpdateDayProfileRequest): DayProfile =
+        client.put("$BASE_URL/day-profiles/${dayType.name}") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
+
+    suspend fun fetchFreeDays(sessionToken: String): Set<Weekday> =
+        client.get("$BASE_URL/free-days") {
+            header("Authorization", "Bearer $sessionToken")
+        }.body<FreeDaysResponse>().days
+
+    suspend fun updateFreeDays(sessionToken: String, days: Set<Weekday>): Set<Weekday> =
+        client.put("$BASE_URL/free-days") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(UpdateFreeDaysRequest(days))
+        }.body<FreeDaysResponse>().days
+
+    suspend fun fetchPlanPreferences(sessionToken: String): Int =
+        client.get("$BASE_URL/plan-preferences") {
+            header("Authorization", "Bearer $sessionToken")
+        }.body<PlanPreferencesResponse>().freeTimePercent
+
+    suspend fun updatePlanPreferences(sessionToken: String, freeTimePercent: Int): Int =
+        client.put("$BASE_URL/plan-preferences") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(UpdatePlanPreferencesRequest(freeTimePercent))
+        }.body<PlanPreferencesResponse>().freeTimePercent
 
     suspend fun fetchPeople(sessionToken: String): List<Person> =
         client.get("$BASE_URL/people") {

@@ -33,7 +33,14 @@ import kotlinx.datetime.toLocalDateTime
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DueDateField(value: String?, onValueChange: (String?) -> Unit, label: String, modifier: Modifier = Modifier) {
+fun DueDateField(
+    value: String?,
+    onValueChange: (String?) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = androidx.compose.material3.OutlinedTextFieldDefaults.shape,
+    colors: androidx.compose.material3.TextFieldColors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(),
+) {
     var showDialog by remember { mutableStateOf(false) }
 
     Box(modifier = modifier) {
@@ -42,6 +49,8 @@ fun DueDateField(value: String?, onValueChange: (String?) -> Unit, label: String
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },
+            shape = shape,
+            colors = colors,
             modifier = Modifier.fillMaxWidth(),
         )
         // Invisible click-catcher the size of the field above — a read-only

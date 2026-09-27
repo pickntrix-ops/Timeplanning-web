@@ -20,13 +20,15 @@ val AppColorScheme: ColorScheme = lightColorScheme(
     onSecondary = Color.White,
     secondaryContainer = Color(0xFFCEE9E3),
     onSecondaryContainer = Color(0xFF06201C),
-    background = Color(0xFFF4FAF8),
-    onBackground = Color(0xFF171D1C),
-    surface = Color(0xFFF4FAF8),
-    onSurface = Color(0xFF171D1C),
-    surfaceVariant = Color(0xFFDAE5E2),
-    onSurfaceVariant = Color(0xFF3F4947),
-    outline = Color(0xFFAAB5B2),
-    outlineVariant = Color(0xFFC9D5D2),
+    // Neutral cool-white grounds (matching the reference designs) rather than a teal tint, so every
+    // screen — including ones that don't sit inside a Scaffold — reads as the same colour.
+    background = Color(0xFFF8F8FA),
+    onBackground = Color(0xFF15151C),
+    surface = Color(0xFFF8F8FA),
+    onSurface = Color(0xFF15151C),
+    surfaceVariant = Color(0xFFEEF0F3),
+    onSurfaceVariant = Color(0xFF6C6C78),
+    outline = Color(0xFFD7D7DD),
+    outlineVariant = Color(0xFFE5E5EA),
     error = Color(0xFFBA1A1A),
 )

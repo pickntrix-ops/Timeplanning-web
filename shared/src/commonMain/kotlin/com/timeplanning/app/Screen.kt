@@ -8,15 +8,23 @@ sealed class Screen {
     data class EditTask(val task: Task) : Screen()
     data class TaskDetail(val task: Task, val categoryColor: String?) : Screen()
     data object Calendar : Screen()
+    /** Weekday/weekend routine capture — the first piece of the plan/scheduling feature (see PROJECT_LOG.md); no generated week view yet. */
+    data object Plan : Screen()
     data object TaskCategories : Screen()
     data class CategoryDetail(val categoryId: Long) : Screen()
+    data class CategoryTasks(val categoryId: Long, val subcategoryId: Long?) : Screen()
+    data object AddCategory : Screen()
+    data class EditCategory(val category: TaskCategory) : Screen()
+    /** Web-only "quick add" — several tasks at once for one category/subcategory. See WebBulkAddTasksScreen. */
+    data class BulkAddTasks(val categoryId: Long, val subcategoryId: Long?) : Screen()
     data object Account : Screen()
 }
 
-/** The four persistent bottom-nav destinations — Add/Edit Task and Task Detail sit on top of these as modal-style overlays, so they don't get a tab. */
+/** The persistent bottom-nav destinations — Add/Edit Task and Task Detail sit on top of these as modal-style overlays, so they don't get a tab. */
 enum class BottomTab(val label: String) {
     TODAY("Today"),
     CALENDAR("Calendar"),
+    PLAN("Plan"),
     CATEGORIES("Tasks"),
     ACCOUNT("Account"),
 }
