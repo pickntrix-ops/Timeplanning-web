@@ -62,7 +62,71 @@ internal val EnergyMediumColor = Color(0xFFF2A93B)
 internal val EnergyLowColor = Color(0xFFE0648C)
 
 /** Local, editable form of FixedCommitment — a stable id so rows can be added/removed before anything's saved. */
-internal data class FixedCommitmentDraft(val id: Int, val label: String, val startTime: String, val endTime: String, val categoryId: Long? = null, val subcategoryId: Long? = null)
+internal data class FixedCommitmentDraft(
+    val id: Int,
+    val label: String,
+    val startTime: String,
+    val endTime: String,
+    val categoryId: Long? = null,
+    val subcategoryId: Long? = null,
+    /** MON..SUN codes; null means every day of the profile's day type. */
+    val daysOfWeek: Set<String>? = null,
+)
+
+private val DayCodeLabels = mapOf("MON" to "Mon", "TUE" to "Tue", "WED" to "Wed", "THU" to "Thu", "FRI" to "Fri", "SAT" to "Sat", "SUN" to "Sun")
+
+/** The days a commitment in this day type's profile can be limited to. */
+internal fun DayType.dayCodes(): List<String> = when (this) {
+    DayType.WEEKDAY -> listOf("MON", "TUE", "WED", "THU", "FRI")
+    DayType.WEEKEND -> listOf("SAT", "SUN")
+}
+
+internal fun parseDayCodes(raw: String?): Set<String>? =
+    raw?.split(",")?.map { it.trim().uppercase() }?.filter { it in DayCodeLabels }?.toSet()?.takeIf { it.isNotEmpty() }
+
+/** What gets sent to the server — null (every day) when nothing's been narrowed, else the codes in week order. */
+internal fun Set<String>?.toDaysOfWeekParam(dayType: DayType): String? {
+    val all = dayType.dayCodes()
+    if (this == null || all.all { it in this }) return null
+    return all.filter { it in this }.joinToString(",").ifEmpty { null }
+}
+
+/** "Mon, Wed, Fri" — or null when it runs every day of the profile, so callers can just omit it. */
+internal fun Set<String>?.daysSummary(dayType: DayType): String? =
+    toDaysOfWeekParam(dayType)?.split(",")?.joinToString(", ") { DayCodeLabels.getValue(it) }
+
+/** One toggle per day of this profile's day type. All on == every day (null); the last remaining day can't be switched off. */
+@Composable
+internal fun CommitmentDayPicker(dayType: DayType, selected: Set<String>?, accent: Color, onChange: (Set<String>?) -> Unit) {
+    val all = dayType.dayCodes()
+    val effective = selected?.filter { it in all }?.toSet()?.takeIf { it.isNotEmpty() } ?: all.toSet()
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Which days?", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            all.forEach { code ->
+                val on = code in effective
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(if (on) accent.copy(alpha = 0.18f) else Color.Transparent)
+                        .border(1.dp, if (on) accent else MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                        .clickable {
+                            val next = if (on) effective - code else effective + code
+                            if (next.isNotEmpty()) onChange(if (next.size == all.size) null else next)
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        DayCodeLabels.getValue(code).take(2),
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (on) FontWeight.Bold else FontWeight.Normal),
+                        color = if (on) accent else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
 
 internal fun timeToMinutes(hhmm: String): Int? {
     val parts = hhmm.split(":")
@@ -178,6 +242,8 @@ fun PlanScreen(
     var savingFreeDays by remember { mutableStateOf(false) }
     var freeTimePercent by remember { mutableStateOf("30") }
     var freeTimePercentTick by remember { mutableStateOf(0) }
+    var preferWeekdays by remember { mutableStateOf(false) }
+    var savingPreferWeekdays by remember { mutableStateOf(false) }
     var planTab by remember { mutableStateOf(PlanTab.SETTINGS) }
 
     fun loadFieldsFrom(profile: DayProfile?) {
@@ -190,7 +256,7 @@ fun PlanScreen(
         lowStart = profile?.lowEnergyStart?.toShortTimeOrSelf() ?: ""
         lowEnd = profile?.lowEnergyEnd?.toShortTimeOrSelf() ?: ""
         commitments = profile?.fixedCommitments.orEmpty().mapIndexed { i, c ->
-            FixedCommitmentDraft(i, c.label, c.startTime.toShortTimeOrSelf(), c.endTime.toShortTimeOrSelf(), c.categoryId, c.subcategoryId)
+            FixedCommitmentDraft(i, c.label, c.startTime.toShortTimeOrSelf(), c.endTime.toShortTimeOrSelf(), c.categoryId, c.subcategoryId, parseDayCodes(c.daysOfWeek))
         }
         nextCommitmentId = commitments.size
         expandedCommitmentId = null
@@ -246,7 +312,7 @@ fun PlanScreen(
                         lowEnergyEnd = lowEnd.ifBlank { null },
                         fixedCommitments = commitments
                             .filter { it.label.isNotBlank() && it.startTime.isNotBlank() && it.endTime.isNotBlank() }
-                            .map { FixedCommitment(it.label, it.startTime, it.endTime, it.categoryId, it.subcategoryId) },
+                            .map { FixedCommitment(it.label, it.startTime, it.endTime, it.categoryId, it.subcategoryId, it.daysOfWeek.toDaysOfWeekParam(selectedDayType)) },
                     ),
                 )
             }.onSuccess { saved ->
@@ -279,14 +345,29 @@ fun PlanScreen(
         if (freeTimePercentTick == 0) return@LaunchedEffect
         delay(700)
         val pct = freeTimePercent.toIntOrNull() ?: return@LaunchedEffect
-        runCatching { apiClient.updatePlanPreferences(sessionToken, pct) }
+        runCatching { apiClient.updatePlanPreferences(sessionToken, freeTimePercent = pct) }
             .onFailure { error = "Couldn't save: ${it.serverMessage()}" }
+    }
+
+    fun togglePreferWeekdays(value: Boolean) {
+        val previous = preferWeekdays
+        preferWeekdays = value
+        savingPreferWeekdays = true
+        scope.launch {
+            runCatching { apiClient.updatePlanPreferences(sessionToken, preferWeekdays = value) }
+                .onSuccess { preferWeekdays = it.preferWeekdays }
+                .onFailure { preferWeekdays = previous; error = "Couldn't save: ${it.serverMessage()}" }
+            savingPreferWeekdays = false
+        }
     }
 
     LaunchedEffect(Unit) {
         runCatching { apiClient.fetchTaskCategories(sessionToken) }.onSuccess { categories = it }
         runCatching { apiClient.fetchFreeDays(sessionToken) }.onSuccess { freeDays = it }
-        runCatching { apiClient.fetchPlanPreferences(sessionToken) }.onSuccess { freeTimePercent = it.toString() }
+        runCatching { apiClient.fetchPlanPreferences(sessionToken) }.onSuccess {
+            freeTimePercent = it.freeTimePercent.toString()
+            preferWeekdays = it.preferWeekdays
+        }
         runCatching { apiClient.fetchDayProfiles(sessionToken) }
             .onSuccess { list ->
                 profiles = list.associateBy { it.dayType }
@@ -461,6 +542,35 @@ fun PlanScreen(
                 }
 
                 PlanSectionCard(
+                    icon = WizardGlyph.CALENDAR,
+                    iconTint = PlanHeaderGreen,
+                    title = "Weekday vs weekend",
+                    description = "Where auto-scheduled tasks should land. \"Weekdays first\" only spills onto a weekend day once every weekday genuinely has no more room — good for keeping weekends quiet.",
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(false to "Spread evenly", true to "Weekdays first").forEach { (value, label) ->
+                            val selected = preferWeekdays == value
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (selected) PlanHeaderGreen else Color.White)
+                                    .border(1.dp, if (selected) PlanHeaderGreen else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                                    .clickable(enabled = !savingPreferWeekdays) { togglePreferWeekdays(value) }
+                                    .padding(vertical = 11.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    label,
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                PlanSectionCard(
                     icon = WizardGlyph.CLOCK,
                     iconTint = PlanHeaderGreen,
                     title = "Your routine",
@@ -548,6 +658,7 @@ fun PlanScreen(
                     commitments.forEach { commitment ->
                         FixedCommitmentItem(
                             commitment = commitment,
+                            dayType = selectedDayType,
                             categories = categories,
                             expanded = expandedCommitmentId == commitment.id,
                             onToggleExpanded = { expandedCommitmentId = if (expandedCommitmentId == commitment.id) null else commitment.id },
@@ -645,7 +756,7 @@ internal fun DayPreviewTimeline(
     commitments: List<FixedCommitmentDraft>,
     categories: List<TaskCategory>,
 ) {
-    val dpPerMinute = 1.7.dp
+    val dpPerMinute = 1.0.dp
     val totalMinutes = (cutoffMinutes - wakeMinutes).coerceAtLeast(1)
     val totalHeight = dpPerMinute * totalMinutes
     fun yFor(minutes: Int) = dpPerMinute * (minutes - wakeMinutes).coerceIn(0, totalMinutes)
@@ -876,6 +987,7 @@ private fun EnergyHandle(modifier: Modifier, xPx: Float, radiusPx: Float, color:
 @Composable
 private fun FixedCommitmentItem(
     commitment: FixedCommitmentDraft,
+    dayType: DayType,
     categories: List<TaskCategory>,
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
@@ -907,7 +1019,10 @@ private fun FixedCommitmentItem(
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                 )
                 Text(
-                    if (commitment.startTime.isNotBlank() && commitment.endTime.isNotBlank()) "${commitment.startTime} – ${commitment.endTime}" else "Set a time",
+                    listOfNotNull(
+                        commitment.daysOfWeek.daysSummary(dayType),
+                        if (commitment.startTime.isNotBlank() && commitment.endTime.isNotBlank()) "${commitment.startTime} – ${commitment.endTime}" else "Set a time",
+                    ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -936,6 +1051,7 @@ private fun FixedCommitmentItem(
                     PlanTimeField("From", commitment.startTime, { onChange(commitment.copy(startTime = it)) }, Modifier.weight(1f))
                     PlanTimeField("To", commitment.endTime, { onChange(commitment.copy(endTime = it)) }, Modifier.weight(1f))
                 }
+                CommitmentDayPicker(dayType, commitment.daysOfWeek, MaterialTheme.colorScheme.primary) { onChange(commitment.copy(daysOfWeek = it)) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box {
                         Row(

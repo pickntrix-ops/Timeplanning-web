@@ -9,6 +9,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -228,240 +236,240 @@ fun WebAddTaskScreen(apiClient: ApiClient, sessionToken: String, editingTask: Ta
     val canSubmit = name.isNotBlank() && selectedCategory != null && durationMinutes.toIntOrNull() != null &&
         (!scheduled || (recurrenceInterval.toIntOrNull() ?: 0) >= 1) && !loading
 
-    WebPageShell(
-        title = if (editingTask != null) "Edit task" else "New task",
-        onClose = onCancel,
-        accent = accent,
-        maxWidth = 820.dp,
-        actions = {
-            AccentButton(
-                text = if (editingTask != null) "Save changes" else "Create task",
-                onClick = ::submit,
-                accent = accent,
-                enabled = canSubmit,
-                modifier = Modifier.height(44.dp),
-                content = if (loading) {
-                    { CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp) }
-                } else null,
-            )
-        },
-    ) {
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-        if (loadingOptions) CircularProgressIndicator()
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    // The side panel (see WebTaskPanel in App.kt): a close bar, the task name as the title, labelled
+    // property rows, and one full-width primary button pinned to the bottom.
+    Column(Modifier.fillMaxSize().background(Color.White)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.dp).clickable(onClick = onCancel), contentAlignment = Alignment.Center) {
+                WizardIconGlyph(WizardGlyph.CLOSE, MaterialTheme.colorScheme.onSurface, Modifier.size(16.dp))
+            }
+            Text(if (editingTask != null) "Edit task" else "New task", fontSize = 19.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 8.dp))
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    WebSectionLabel("Task")
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        placeholder = { Text("e.g. Hoover the bedroom") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = fieldColors,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 26.dp, vertical = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            // The task's name is the panel's title, typed straight into it.
+            Box {
+                if (name.isEmpty()) Text("Task name", fontSize = 19.sp, color = PaleDay)
+                BasicTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    textStyle = TextStyle(fontSize = 19.sp, color = MaterialTheme.colorScheme.onSurface),
+                    cursorBrush = SolidColor(WebAccent),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+            if (loadingOptions) CircularProgressIndicator(Modifier.size(20.dp), color = WebAccent, strokeWidth = 2.dp)
 
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    WebSectionLabel("Category")
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        categories.forEach { category ->
-                            val catAccent = category.displayColor.toColorOrNull() ?: Color.Gray
-                            val selected = selectedCategory?.id == category.id
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(50))
-                                    .background(if (selected) catAccent.copy(alpha = 0.14f) else Color.White)
-                                    .border(1.dp, if (selected) catAccent else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(50))
-                                    .clickable {
-                                        selectedCategory = category
-                                        selectedSubcategory = null
-                                        recurrenceBase = category.defaultRecurrenceBase
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                CategoryIconGlyph(category.displayIcon, catAccent, Modifier.size(16.dp))
-                                Text(category.name, style = MaterialTheme.typography.labelLarge)
-                            }
+            PanelSectionHeader("Details")
+            PanelRow(WizardGlyph.LIST, "Category") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    categories.forEach { category ->
+                        val catColor = category.displayColor.toColorOrNull() ?: Color.Gray
+                        SquareChip(category.name, selected = selectedCategory?.id == category.id, color = catColor) {
+                            selectedCategory = category
+                            selectedSubcategory = null
+                            recurrenceBase = category.defaultRecurrenceBase
                         }
                     }
                 }
+            }
 
-                val subcategories = selectedCategory?.subcategories.orEmpty()
-                if (subcategories.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        WebSectionLabel("Subcategory")
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            subcategories.forEach { sub ->
-                                val selected = selectedSubcategory?.id == sub.id
-                                WebChip(sub.name, selected, accent) {
-                                    if (selected) {
-                                        selectedSubcategory = null
-                                        selectedCategory?.let { recurrenceBase = it.defaultRecurrenceBase }
-                                    } else {
-                                        selectedSubcategory = sub
-                                        selectedCategory?.let { recurrenceBase = sub.effectiveRecurrenceBase(it) }
-                                    }
+            val subcategories = selectedCategory?.subcategories.orEmpty()
+            if (subcategories.isNotEmpty()) {
+                PanelRow(WizardGlyph.LINK, "Subcategory") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        subcategories.forEach { sub ->
+                            val selected = selectedSubcategory?.id == sub.id
+                            SquareChip(sub.name, selected, accent) {
+                                if (selected) {
+                                    selectedSubcategory = null
+                                    selectedCategory?.let { recurrenceBase = it.defaultRecurrenceBase }
+                                } else {
+                                    selectedSubcategory = sub
+                                    selectedCategory?.let { recurrenceBase = sub.effectiveRecurrenceBase(it) }
                                 }
                             }
                         }
                     }
                 }
+            }
 
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    WebSectionLabel("When")
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        DueDateField(value = dueDate, onValueChange = { dueDate = it }, label = "Due date", shape = RoundedCornerShape(14.dp), colors = fieldColors, modifier = Modifier.weight(1f))
-                        OutlinedTextField(
-                            value = durationMinutes,
-                            onValueChange = { durationMinutes = it.filter { c -> c.isDigit() } },
-                            label = { Text("Duration (min)") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = fieldColors,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+            PanelSectionHeader("Schedule")
+            PanelRow(WizardGlyph.CALENDAR, "Due date") {
+                DueDateField(value = dueDate, onValueChange = { dueDate = it }, label = "Due date", plain = true, modifier = Modifier.width(180.dp))
+            }
+
+            PanelRow(WizardGlyph.CLOCK, "Duration") {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PanelField(durationMinutes, { durationMinutes = it.filter { c -> c.isDigit() } }, Modifier.width(80.dp))
+                    Text("minutes", fontSize = 14.sp, color = muted)
                 }
             }
 
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                WebSectionLabel("Task settings")
-
-                WebSettingsCard {
-                    WebSettingRow(WizardGlyph.REPEAT, "Repeatable", if (repeatable) "This task will repeat" else "This task happens once") {
-                        Switch(checked = repeatable, onCheckedChange = { repeatable = it; if (it) chooseFrequency(frequency) }, colors = SwitchDefaults.colors(checkedTrackColor = accent))
+            PanelRow(WizardGlyph.REPEAT, "Repeats") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Switch(checked = repeatable, onCheckedChange = { repeatable = it; if (it) chooseFrequency(frequency) }, colors = SwitchDefaults.colors(checkedTrackColor = WebAccent))
+                        Text(if (repeatable) frequencyLabel else "Happens once", fontSize = 14.sp)
                     }
                     if (repeatable) {
-                        Column(modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(accent.copy(alpha = 0.06f)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                WebFrequency.entries.forEach { option -> WebChip(option.label, frequency == option, accent) { chooseFrequency(option) } }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            WebFrequency.entries.forEach { option -> SquareChip(option.label, frequency == option, accent) { chooseFrequency(option) } }
+                        }
+                        if (frequency == WebFrequency.CUSTOM) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("Every", fontSize = 14.sp)
+                                PanelField(recurrenceInterval, { recurrenceInterval = it.filter { c -> c.isDigit() } }, Modifier.width(70.dp))
                             }
-                            if (frequency == WebFrequency.CUSTOM) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Every", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
-                                    OutlinedTextField(
-                                        value = recurrenceInterval,
-                                        onValueChange = { recurrenceInterval = it.filter { c -> c.isDigit() } },
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(14.dp),
-                                        colors = fieldColors,
-                                        modifier = Modifier.width(84.dp),
-                                    )
-                                }
-                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    RecurrenceUnit.entries.forEach { u -> WebChip(u.pluralWeb().replaceFirstChar { it.uppercase() }, recurrenceUnit == u, accent) { recurrenceUnit = u } }
-                                }
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                RecurrenceUnit.entries.forEach { u -> SquareChip(u.pluralWeb().replaceFirstChar { it.uppercase() }, recurrenceUnit == u, accent) { recurrenceUnit = u } }
                             }
-                            if (frequency == WebFrequency.MANUAL) {
-                                Text(
-                                    "Comes back blank when completed, ready to re-date (e.g. Etsy order).",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            } else {
-                                Text("Next date is counted", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
-                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    RecurrenceBase.entries.forEach { base -> WebChip(base.shortLabel(), recurrenceBase == base, accent) { recurrenceBase = base } }
-                                }
-                                Text(recurrenceBase.description(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (frequency == WebFrequency.MANUAL) {
+                            Text("Comes back blank when completed, ready to re-date (e.g. Etsy order).", fontSize = 12.sp, color = muted)
+                        } else {
+                            Text("Next date is counted from", fontSize = 12.sp, color = muted)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                RecurrenceBase.entries.forEach { base -> SquareChip(base.shortLabel(), recurrenceBase == base, accent) { recurrenceBase = base } }
                             }
+                            Text(recurrenceBase.description(), fontSize = 12.sp, color = muted)
                         }
                     }
                 }
+            }
 
-                if (effectiveLinksToPerson) {
-                    WebSettingsCard {
-                        WebSettingRow(WizardGlyph.PERSON, "Assign to", "Link this task to a person") {
-                            Box {
-                                Text(
-                                    selectedPerson?.name ?: "Not assigned",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceVariant).clickable { personMenuExpanded = true }.padding(horizontal = 14.dp, vertical = 10.dp),
-                                )
-                                DropdownMenu(expanded = personMenuExpanded, onDismissRequest = { personMenuExpanded = false }) {
-                                    DropdownMenuItem(text = { Text("Not assigned") }, onClick = { selectedPerson = null; personMenuExpanded = false })
-                                    people.forEach { person -> DropdownMenuItem(text = { Text(person.name) }, onClick = { selectedPerson = person; personMenuExpanded = false }) }
-                                }
-                            }
+            PanelSectionHeader("More")
+            if (effectiveLinksToPerson) {
+                PanelRow(WizardGlyph.PERSON, "Assigned to") {
+                    Box {
+                        Text(
+                            selectedPerson?.name ?: "Not assigned",
+                            fontSize = 14.sp,
+                            modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant).clickable { personMenuExpanded = true }.padding(horizontal = 12.dp, vertical = 8.dp),
+                        )
+                        DropdownMenu(expanded = personMenuExpanded, onDismissRequest = { personMenuExpanded = false }, containerColor = Color.White, shape = RectangleShape) {
+                            DropdownMenuItem(text = { Text("Not assigned") }, onClick = { selectedPerson = null; personMenuExpanded = false })
+                            people.forEach { person -> DropdownMenuItem(text = { Text(person.name) }, onClick = { selectedPerson = person; personMenuExpanded = false }) }
                         }
                     }
                 }
+            }
 
-                if (effectiveLinksToEvent) {
-                    WebSettingsCard {
-                        WebSettingRow(WizardGlyph.CALENDAR, "Linked event", "e.g. Christmas (optional)") {
-                            OutlinedTextField(value = linkedEvent, onValueChange = { linkedEvent = it }, singleLine = true, shape = RoundedCornerShape(14.dp), colors = fieldColors, modifier = Modifier.width(160.dp))
-                        }
+            if (effectiveLinksToEvent) {
+                PanelRow(WizardGlyph.CALENDAR, "Linked event") {
+                    PanelField(linkedEvent, { linkedEvent = it }, Modifier.fillMaxWidth(), placeholder = "e.g. Christmas")
+                }
+            }
+
+            if (effectiveOrdered) {
+                PanelRow(WizardGlyph.ORDER, "Order") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        SquareChip("Top of queue", orderChoice == WebOrderChoice.TOP, accent) { orderChoice = WebOrderChoice.TOP }
+                        SquareChip("Bottom of queue", orderChoice == WebOrderChoice.BOTTOM, accent) { orderChoice = WebOrderChoice.BOTTOM }
                     }
                 }
+            }
 
-                if (effectiveOrdered) {
-                    WebSettingsCard {
-                        WebSettingRow(WizardGlyph.ORDER, "Order", "Where in the queue this goes") {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                WebChip("Top", orderChoice == WebOrderChoice.TOP, accent) { orderChoice = WebOrderChoice.TOP }
-                                WebChip("Bottom", orderChoice == WebOrderChoice.BOTTOM, accent) { orderChoice = WebOrderChoice.BOTTOM }
-                            }
-                        }
-                    }
-                }
-
-                WebSettingsCard {
-                    WebSettingRow(WizardGlyph.CHECK_CIRCLE, "Follow-up task", "Queue another task after this one") {
-                        Switch(checked = showFollowUp, onCheckedChange = { showFollowUp = it }, colors = SwitchDefaults.colors(checkedTrackColor = accent))
+            PanelRow(WizardGlyph.CHECK_CIRCLE, "Follow-up") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Switch(checked = showFollowUp, onCheckedChange = { showFollowUp = it }, colors = SwitchDefaults.colors(checkedTrackColor = WebAccent))
+                        Text(if (showFollowUp) "Queue another task after this one" else "None", fontSize = 14.sp)
                     }
                     if (showFollowUp) {
-                        Row(modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.weight(1f)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(1f)) {
                                 Text(
                                     followUpTask?.name ?: "Choose a task",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontSize = 14.sp,
                                     maxLines = 1,
-                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceVariant).clickable { followUpMenuExpanded = true }.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant).clickable { followUpMenuExpanded = true }.padding(horizontal = 12.dp, vertical = 10.dp),
                                 )
-                                DropdownMenu(expanded = followUpMenuExpanded, onDismissRequest = { followUpMenuExpanded = false }) {
-                                    existingTasks.filter { it.id != editingTask?.id }.forEach { candidate ->
-                                        DropdownMenuItem(text = { Text(candidate.name) }, onClick = { followUpTask = candidate; followUpMenuExpanded = false })
-                                    }
+                                DropdownMenu(expanded = followUpMenuExpanded, onDismissRequest = { followUpMenuExpanded = false }, containerColor = Color.White, shape = RectangleShape) {
+                                    // Scoped to this task's own category — see AddTaskScreen's mobile
+                                    // equivalent for why (showing every task across every category was unusable).
+                                    existingTasks
+                                        .filter { it.id != editingTask?.id && it.taskCategoryId == selectedCategory?.id }
+                                        .forEach { candidate ->
+                                            DropdownMenuItem(text = { Text(candidate.name) }, onClick = { followUpTask = candidate; followUpMenuExpanded = false })
+                                        }
                                 }
                             }
-                            OutlinedTextField(
-                                value = followUpOffsetDays,
-                                onValueChange = { followUpOffsetDays = it.filter { c -> c.isDigit() } },
-                                label = { Text("Days after") },
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp),
-                                colors = fieldColors,
-                                modifier = Modifier.width(120.dp),
-                            )
+                            PanelField(followUpOffsetDays, { followUpOffsetDays = it.filter { c -> c.isDigit() } }, Modifier.width(60.dp))
+                            Text("days after", fontSize = 14.sp, color = muted)
                         }
                     }
                 }
             }
         }
+
+        Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
+        Box(
+            Modifier.padding(20.dp).fillMaxWidth().height(52.dp)
+                .background(if (canSubmit) WebAccent else WebAccent.copy(alpha = 0.35f))
+                .clickable(enabled = canSubmit, onClick = ::submit),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (loading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+            else Text(if (editingTask != null) "Save changes" else "Create task", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
     }
 }
 
+/** A thin line and a small heading that starts a group of rows in the panel. */
 @Composable
-private fun WebSettingsCard(content: @Composable () -> Unit) {
-    WebCard(modifier = Modifier.fillMaxWidth()) { content() }
+private fun PanelSectionHeader(title: String) {
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+    }
 }
 
+/** One labelled property of the task: icon + label on the left, the control on the right (the reference's "Priority / Status / Due date" rows). */
 @Composable
-private fun WebSettingRow(glyph: WizardGlyph, title: String, description: String, trailing: @Composable () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-            WizardIconGlyph(glyph, MaterialTheme.colorScheme.onSurface, Modifier.size(20.dp))
+private fun PanelRow(glyph: WizardGlyph, label: String, content: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Row(Modifier.width(118.dp).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            WizardIconGlyph(glyph, MaterialTheme.colorScheme.onSurfaceVariant, Modifier.size(18.dp))
+            Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
-            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        trailing()
+        Box(Modifier.weight(1f)) { content() }
     }
+}
+
+/** A plain square single-line input with a 1px border — the panel's text field. */
+@Composable
+private fun PanelField(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier, placeholder: String? = null) {
+    Box(modifier.border(1.dp, MaterialTheme.colorScheme.outline).padding(horizontal = 12.dp, vertical = 10.dp)) {
+        if (value.isEmpty() && placeholder != null) Text(placeholder, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface),
+            cursorBrush = SolidColor(WebAccent),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/** A square selectable chip — the web's square style, tinted with its colour when selected. */
+@Composable
+private fun SquareChip(label: String, selected: Boolean, color: Color, onClick: () -> Unit) {
+    Text(
+        label,
+        fontSize = 14.sp,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier
+            .background(if (selected) color.webPastel() else Color.White)
+            .border(1.dp, if (selected) color else MaterialTheme.colorScheme.outlineVariant)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    )
 }

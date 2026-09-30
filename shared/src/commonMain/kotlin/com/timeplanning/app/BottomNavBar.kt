@@ -32,6 +32,7 @@ private fun BottomTab.glyph(): WizardGlyph = when (this) {
 /** The persistent bottom tab bar shared by the five top-level screens (Today/Calendar/Plan/Categories/Account) — modal-style screens like Add/Edit Task and Task Detail don't show it. */
 @Composable
 fun BottomNavBar(current: BottomTab, onSelect: (BottomTab) -> Unit) {
+    if (LocalInWebShell.current) return
     Column {
         Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
         Row(

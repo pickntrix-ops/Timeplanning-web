@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -101,6 +102,24 @@ fun WebCategoriesScreen(
     }
     val selectedCategory = categories.find { it.id == selectedCategoryId }
 
+    // The Tasks page itself: full-width lists (this week / all tasks / history), no category side panel.
+    // Category pages (reached from the app sidebar's category shortcuts) keep the panel for editing.
+    if (screen == Screen.TaskCategories) {
+        Box(Modifier.fillMaxSize().background(WebColorScheme.background), contentAlignment = Alignment.TopCenter) {
+            TasksOverview(
+                apiClient = apiClient,
+                sessionToken = sessionToken,
+                allTasks = tasks,
+                categoryColors = categories.associate { it.id to it.displayColor },
+                onOpenTask = { task -> onNavigate(Screen.TaskDetail(task, categories.find { it.id == task.taskCategoryId }?.displayColor)) },
+                onTasksChanged = { localRefresh++ },
+                horizontalPadding = 32.dp,
+                modifier = Modifier.padding(top = 24.dp).widthIn(max = 900.dp),
+            )
+        }
+        return
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(WebColorScheme.background)) {
         WebTopNav(currentTab, onSelectTab)
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -162,7 +181,17 @@ fun WebCategoriesScreen(
                         onBulkAdd = { onNavigate(Screen.BulkAddTasks(selectedCategory.id, null)) },
                     )
                     !loading && categories.isEmpty() -> WebEmptyPane("No categories yet — create your first one from the sidebar.")
-                    else -> WebEmptyPane("Select a category on the left to see its subcategories and tasks.")
+                    // No category picked: this week's tasks, search-and-tick, and history (see TasksOverview).
+                    else -> TasksOverview(
+                        apiClient = apiClient,
+                        sessionToken = sessionToken,
+                        allTasks = tasks,
+                        categoryColors = categories.associate { it.id to it.displayColor },
+                        onOpenTask = { task -> onNavigate(Screen.TaskDetail(task, categories.find { it.id == task.taskCategoryId }?.displayColor)) },
+                        onTasksChanged = { localRefresh++ },
+                        horizontalPadding = 32.dp,
+                        modifier = Modifier.padding(top = 20.dp).widthIn(max = 900.dp),
+                    )
                 }
             }
         }

@@ -1,6 +1,11 @@
 package com.timeplanning.app
 
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,10 +45,22 @@ fun DueDateField(
     modifier: Modifier = Modifier,
     shape: androidx.compose.ui.graphics.Shape = androidx.compose.material3.OutlinedTextFieldDefaults.shape,
     colors: androidx.compose.material3.TextFieldColors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(),
+    /** A plain square bordered box with no floating label — the web task panel's style. */
+    plain: Boolean = false,
 ) {
     var showDialog by remember { mutableStateOf(false) }
 
-    Box(modifier = modifier) {
+    if (plain) {
+        Text(
+            value ?: "No date",
+            fontSize = 14.sp,
+            color = if (value == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            modifier = modifier
+                .border(1.dp, MaterialTheme.colorScheme.outline)
+                .clickable { showDialog = true }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        )
+    } else Box(modifier = modifier) {
         OutlinedTextField(
             value = value ?: "No date",
             onValueChange = {},

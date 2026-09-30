@@ -570,9 +570,17 @@ fun AddTaskScreen(apiClient: ApiClient, sessionToken: String, editingTask: Task?
                                                     .padding(horizontal = 14.dp, vertical = 12.dp),
                                             )
                                             DropdownMenu(expanded = followUpMenuExpanded, onDismissRequest = { followUpMenuExpanded = false }) {
-                                                existingTasks.filter { it.id != editingTask?.id }.forEach { candidate ->
-                                                    DropdownMenuItem(text = { Text(candidate.name) }, onClick = { followUpTask = candidate; followUpMenuExpanded = false })
-                                                }
+                                                // Scoped to this task's own category — a follow-up only
+                                                // ever makes sense as a related task (subcategories are
+                                                // themselves category-scoped, so matching one already
+                                                // implies matching the category too), not any of
+                                                // potentially dozens of unrelated tasks across every
+                                                // category, which just made the picker unusable.
+                                                existingTasks
+                                                    .filter { it.id != editingTask?.id && it.taskCategoryId == selectedCategory?.id }
+                                                    .forEach { candidate ->
+                                                        DropdownMenuItem(text = { Text(candidate.name) }, onClick = { followUpTask = candidate; followUpMenuExpanded = false })
+                                                    }
                                             }
                                         }
                                         OutlinedTextField(

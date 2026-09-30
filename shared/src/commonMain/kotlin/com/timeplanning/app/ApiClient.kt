@@ -99,9 +99,11 @@ class ApiClient {
             setBody(request)
         }.body()
 
-    suspend fun completeTask(sessionToken: String, taskId: Long): Task =
+    /** `date` (YYYY-MM-DD) logs the completion on an earlier day — catching up on a missed task. */
+    suspend fun completeTask(sessionToken: String, taskId: Long, date: String? = null): Task =
         client.post("$BASE_URL/tasks/$taskId/complete") {
             header("Authorization", "Bearer $sessionToken")
+            date?.let { parameter("date", it) }
         }.body()
 
     suspend fun updateTask(sessionToken: String, taskId: Long, request: UpdateTaskRequest): Task =
@@ -214,17 +216,97 @@ class ApiClient {
             setBody(UpdateFreeDaysRequest(days))
         }.body<FreeDaysResponse>().days
 
-    suspend fun fetchPlanPreferences(sessionToken: String): Int =
+    suspend fun fetchPlanPreferences(sessionToken: String): PlanPreferencesResponse =
         client.get("$BASE_URL/plan-preferences") {
             header("Authorization", "Bearer $sessionToken")
-        }.body<PlanPreferencesResponse>().freeTimePercent
+        }.body()
 
-    suspend fun updatePlanPreferences(sessionToken: String, freeTimePercent: Int): Int =
+    /** Only the fields passed update — see UpdatePlanPreferencesRequest. */
+    suspend fun updatePlanPreferences(sessionToken: String, freeTimePercent: Int? = null, preferWeekdays: Boolean? = null): PlanPreferencesResponse =
         client.put("$BASE_URL/plan-preferences") {
             header("Authorization", "Bearer $sessionToken")
             contentType(ContentType.Application.Json)
-            setBody(UpdatePlanPreferencesRequest(freeTimePercent))
-        }.body<PlanPreferencesResponse>().freeTimePercent
+            setBody(UpdatePlanPreferencesRequest(freeTimePercent, preferWeekdays))
+        }.body()
+
+    /** Runs the scheduling engine for the given week (server defaults to next Monday if omitted) and persists the result. */
+    suspend fun generatePlan(sessionToken: String, weekStart: String? = null): GeneratePlanResponse =
+        client.post("$BASE_URL/plan/generate") {
+            header("Authorization", "Bearer $sessionToken")
+            weekStart?.let { parameter("weekStart", it) }
+        }.body()
+
+    /** Re-fetches an already-generated week's task placements plus that week's fixed-commitment occurrences, without recomputing anything. */
+    suspend fun fetchPlanBlocks(sessionToken: String, weekStart: String? = null): PlanBlocksResponse =
+        client.get("$BASE_URL/plan/blocks") {
+            header("Authorization", "Bearer $sessionToken")
+            weekStart?.let { parameter("weekStart", it) }
+        }.body()
+
+    /** Re-plans just one date — every other date's stored blocks are left exactly as they were. See PlanGenerationService.regenerateDay; the response is already scoped to `date`. */
+    suspend fun regenerateDay(sessionToken: String, date: String): GeneratePlanResponse =
+        client.post("$BASE_URL/plan/regenerate-day") {
+            header("Authorization", "Bearer $sessionToken")
+            parameter("date", date)
+        }.body()
+
+    /** Calendar events added since this or next week's plan was made that land on something planned — see PlanGenerationService.clashes. */
+    suspend fun fetchClashes(sessionToken: String): List<CalendarClash> =
+        client.get("$BASE_URL/plan/clashes") {
+            header("Authorization", "Bearer $sessionToken")
+        }.body()
+
+    suspend fun resolveClash(sessionToken: String, clash: CalendarClash, action: ClashAction) {
+        client.post("$BASE_URL/plan/clashes/resolve") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(ResolveClashRequest(clash.eventKey, clash.date, action.name))
+        }
+    }
+
+    /** All-day events from today to the end of next week that haven't been answered yet. */
+    suspend fun fetchAllDayPrompts(sessionToken: String): List<AllDayPrompt> =
+        client.get("$BASE_URL/plan/all-day-events") {
+            header("Authorization", "Bearer $sessionToken")
+        }.body()
+
+    /** Saves the answer (for every occurrence of a repeating event) and re-plans any affected day. */
+    suspend fun resolveAllDay(sessionToken: String, prompt: AllDayPrompt, choice: AllDayChoice) {
+        client.post("$BASE_URL/plan/all-day-events/choice") {
+            header("Authorization", "Bearer $sessionToken")
+            contentType(ContentType.Application.Json)
+            setBody(ResolveAllDayRequest(prompt.seriesKey, choice.name))
+        }
+    }
+
+    suspend fun fetchMe(sessionToken: String): Me =
+        client.get("$BASE_URL/me") {
+            header("Authorization", "Bearer $sessionToken")
+        }.body()
+
+    suspend fun fetchDayReview(sessionToken: String, date: String): List<ReviewItem> =
+        client.get("$BASE_URL/plan/day-review") {
+            header("Authorization", "Bearer $sessionToken")
+            parameter("date", date)
+        }.body()
+
+    suspend fun fetchWeekTasks(sessionToken: String): List<WeekTask> =
+        client.get("$BASE_URL/plan/week-tasks") {
+            header("Authorization", "Bearer $sessionToken")
+        }.body()
+
+    suspend fun fetchHistory(sessionToken: String, weeks: Int = 4): HistorySummary =
+        client.get("$BASE_URL/history") {
+            header("Authorization", "Bearer $sessionToken")
+            parameter("weeks", weeks)
+        }.body()
+
+    /** Drops a single task's current placement (whichever date it's on), leaving the task itself untouched — free to be picked up again next time that date (or the week) is regenerated. */
+    suspend fun unscheduleTask(sessionToken: String, taskId: Long) {
+        client.delete("$BASE_URL/plan/blocks/$taskId") {
+            header("Authorization", "Bearer $sessionToken")
+        }
+    }
 
     suspend fun fetchPeople(sessionToken: String): List<Person> =
         client.get("$BASE_URL/people") {

@@ -63,14 +63,16 @@ fun TaskCategoriesScreen(
     onOpenCategory: (TaskCategory) -> Unit,
     onAddCategory: () -> Unit,
     onAddTask: () -> Unit,
+    onOpenTask: (Task, String?) -> Unit,
     refreshKey: Int,
 ) {
+    var localRefresh by remember { mutableStateOf(0) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var categories by remember { mutableStateOf<List<TaskCategory>>(emptyList()) }
     var tasks by remember { mutableStateOf<List<Task>>(emptyList()) }
 
-    LaunchedEffect(refreshKey) {
+    LaunchedEffect(refreshKey, localRefresh) {
         loading = true
         error = null
         runCatching { apiClient.fetchTaskCategories(sessionToken) to apiClient.fetchTasks(sessionToken) }
@@ -110,6 +112,14 @@ fun TaskCategoriesScreen(
             if (loading && categories.isEmpty()) CircularProgressIndicator(modifier = Modifier.padding(16.dp))
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
 
+            TasksOverview(
+                apiClient = apiClient,
+                sessionToken = sessionToken,
+                allTasks = tasks,
+                categoryColors = categories.associate { it.id to it.displayColor },
+                onOpenTask = { task -> onOpenTask(task, categories.find { it.id == task.taskCategoryId }?.displayColor) },
+                onTasksChanged = { localRefresh++ },
+                categoriesContent = {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -155,6 +165,8 @@ fun TaskCategoriesScreen(
                     }
                 }
             }
+                },
+            )
         }
     }
 }

@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 /** A slim horizontal top bar replacing the mobile bottom tab bar — a tab row reads as native on a wide desktop page, a bottom bar reads as a phone. */
 @Composable
 fun WebTopNav(currentTab: BottomTab, onSelectTab: (BottomTab) -> Unit) {
+    if (LocalInWebShell.current) return
     Row(
         modifier = Modifier
             .fillMaxWidth()

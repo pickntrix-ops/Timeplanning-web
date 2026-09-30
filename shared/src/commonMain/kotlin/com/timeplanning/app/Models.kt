@@ -174,6 +174,8 @@ data class FixedCommitment(
     val endTime: String,
     val categoryId: Long? = null,
     val subcategoryId: Long? = null,
+    /** Comma-separated MON..SUN codes — the specific days of this profile's day type it happens on. Null means every day the profile applies to. */
+    val daysOfWeek: String? = null,
 )
 
 @Serializable
@@ -225,12 +227,13 @@ data class FreeDaysResponse(val days: Set<Weekday>)
 @Serializable
 data class UpdateFreeDaysRequest(val days: Set<Weekday>)
 
-/** A single, non-Weekday/Weekend-scoped setting — roughly how much of each day's real free time should stay unscheduled. See AppUser.freeTimePercent on the server. */
+/** Global (not Weekday/Weekend-scoped) settings — roughly how much of each day's real free time should stay unscheduled, and whether discretionary tasks favour weekdays over weekends. See AppUser.freeTimePercent/preferWeekdays on the server. */
 @Serializable
-data class PlanPreferencesResponse(val freeTimePercent: Int)
+data class PlanPreferencesResponse(val freeTimePercent: Int, val preferWeekdays: Boolean)
 
+/** Null leaves that field unchanged — see the server's own UpdatePlanPreferencesRequest doc comment. */
 @Serializable
-data class UpdatePlanPreferencesRequest(val freeTimePercent: Int)
+data class UpdatePlanPreferencesRequest(val freeTimePercent: Int? = null, val preferWeekdays: Boolean? = null)
 
 /** "07:30:00" (the server's own format) or "07:30" → "07:30", for display. Blank/malformed input passes through unchanged rather than throwing. */
 fun String.toShortTimeOrSelf(): String = if (length >= 5) take(5) else this
@@ -367,3 +370,164 @@ data class CalendarEventInfo(
 
 @Serializable
 data class UpdateSelectedCalendarsRequest(val calendarIds: List<String>)
+
+/**
+ * One task placement from a generated week — see the server's
+ * SchedulingEngine for the actual placement logic. date/startTime/endTime
+ * are "YYYY-MM-DD"/"HH:mm:ss" (the server's own format).
+ */
+@Serializable
+data class ScheduledBlockResponse(
+    val taskId: Long,
+    val taskName: String,
+    val categoryId: Long,
+    val categoryName: String,
+    val categoryColor: String?,
+    val subcategoryName: String?,
+    val date: String,
+    val startTime: String,
+    val endTime: String,
+)
+
+/** A task the engine couldn't fit anywhere this week — surfaced so the person can see and act on it, not silently dropped. */
+@Serializable
+data class UnplacedTaskResponse(
+    val taskId: Long,
+    val taskName: String,
+    val reason: String,
+)
+
+/** A fixed commitment's occurrence on one date — always present, every day it applies, whether or not a task ended up filling it (see the server's SchedulingEngine commitment-filling pass), so the plan shows the day's whole real shape (Work, Weights, tea, ...), not just the tasks placed around it. */
+@Serializable
+data class CommitmentBlockResponse(
+    val label: String,
+    val date: String,
+    val startTime: String,
+    val endTime: String,
+    val categoryId: Long?,
+    val categoryName: String?,
+    val categoryColor: String?,
+    val subcategoryName: String?,
+)
+
+@Serializable
+data class GeneratePlanResponse(
+    val weekStart: String,
+    val blocks: List<ScheduledBlockResponse>,
+    val unplaced: List<UnplacedTaskResponse>,
+    val commitments: List<CommitmentBlockResponse>,
+)
+
+@Serializable
+data class PlanBlocksResponse(
+    val weekStart: String,
+    val blocks: List<ScheduledBlockResponse>,
+    val commitments: List<CommitmentBlockResponse>,
+)
+
+/** One thing in the plan a new calendar event lands on — a commitment (with however many tasks fill it) or a run of one category's tasks. */
+@Serializable
+data class ClashItem(
+    val label: String,
+    val categoryColor: String? = null,
+    val startTime: String,
+    val endTime: String,
+    val taskCount: Int,
+    val isCommitment: Boolean,
+)
+
+/** A calendar event added (or moved) since the plan was made that lands on something planned — one per event. Events already there when the plan was made never show up here; the plan was built around them. */
+@Serializable
+data class CalendarClash(
+    val eventKey: String,
+    val eventTitle: String,
+    val date: String,
+    val startTime: String,
+    val endTime: String,
+    val items: List<ClashItem>,
+)
+
+@Serializable
+data class ResolveClashRequest(val eventKey: String, val date: String, val action: String)
+
+/** MOVE re-plans what the event landed on into free time that day; REMOVE takes it out of the plan; KEEP leaves both. */
+enum class ClashAction { MOVE, REMOVE, KEEP }
+
+/** An all-day calendar event nobody has said how to plan around yet — see AllDayPromptCard. */
+@Serializable
+data class AllDayPrompt(val seriesKey: String, val title: String, val firstDate: String, val lastDate: String)
+
+@Serializable
+data class ResolveAllDayRequest(val seriesKey: String, val choice: String)
+
+/** DAY_OFF clears the day (no commitments, no tasks); KEEP_COMMITMENTS keeps fixed commitments but plans nothing else. */
+enum class AllDayChoice { DAY_OFF, KEEP_COMMITMENTS }
+
+/** A task planned this week, once however many days it's on — see PlanHistoryService.weekTasks. */
+@Serializable
+data class WeekTask(
+    val taskId: Long,
+    val taskName: String,
+    val categoryId: Long,
+    val categoryName: String,
+    val categoryColor: String? = null,
+    val subcategoryName: String? = null,
+    val isDaily: Boolean,
+    val dates: List<String>,
+    val completedDates: List<String>,
+    val status: TaskStatus,
+)
+
+@Serializable
+data class HistoryItem(val taskName: String, val categoryName: String, val categoryColor: String? = null, val outcome: String)
+
+@Serializable
+data class HistoryDay(val date: String, val items: List<HistoryItem>)
+
+@Serializable
+data class WeekdayStat(val day: String, val planned: Int, val done: Int, val unplannedDone: Int)
+
+@Serializable
+data class CategoryStat(val name: String, val color: String? = null, val planned: Int, val done: Int, val missed: Int, val moved: Int)
+
+@Serializable
+data class TaskStat(val taskName: String, val categoryName: String, val categoryColor: String? = null, val done: Int, val missed: Int, val moved: Int)
+
+/** Planned vs actually done over the last few weeks — see PlanHistoryService.summary. */
+@Serializable
+data class HistorySummary(
+    val from: String,
+    val to: String,
+    val planned: Int,
+    val done: Int,
+    val missed: Int,
+    val moved: Int,
+    val unplannedDone: Int,
+    val byWeekday: List<WeekdayStat>,
+    val completionsByHour: List<Int>,
+    val byCategory: List<CategoryStat>,
+    val mostSkipped: List<TaskStat>,
+    val days: List<HistoryDay>,
+)
+
+/** Who's signed in — for the web sidebar's profile row. */
+@Serializable
+data class Me(val email: String, val displayName: String? = null)
+
+/** One planned task on a past day, and what happened to it — see PlanHistoryService.dayReview. */
+@Serializable
+data class ReviewItem(
+    val taskId: Long? = null,
+    val taskName: String,
+    val categoryId: Long? = null,
+    val categoryName: String,
+    val categoryColor: String? = null,
+    val subcategoryName: String? = null,
+    val startTime: String,
+    val endTime: String,
+    /** DONE or MISSED on the day itself. */
+    val outcome: String,
+    /** A missed task that's been ticked off since. */
+    val caughtUp: Boolean = false,
+    val pending: Boolean = false,
+)

@@ -245,7 +245,7 @@ fun CategoryIconGlyph(icon: CategoryIcon, tint: Color, modifier: Modifier = Modi
 }
 
 /** A few extra glyphs used only inside the category wizard's own UI (not selectable/stored) — kept separate from CategoryIcon so the 12-icon picker grid stays exactly the fixed set the person chooses from. */
-enum class WizardGlyph { ORDER, CALENDAR, CHECK_CIRCLE, REPEAT, PERSON, PLUS, CLOSE, LINK, CLOCK, LIST, SUN, BOLT, CHECK, INFO }
+enum class WizardGlyph { ORDER, CALENDAR, CHECK_CIRCLE, REPEAT, PERSON, PLUS, CLOSE, LINK, CLOCK, LIST, SUN, MOON, BOLT, CHECK, CHEVRON, INFO }
 
 @Composable
 fun WizardIconGlyph(icon: WizardGlyph, tint: Color, modifier: Modifier = Modifier) {
@@ -369,6 +369,23 @@ fun WizardIconGlyph(icon: WizardGlyph, tint: Color, modifier: Modifier = Modifie
                 line(16.9f, 16.9f, 18.6f, 18.6f)
                 line(5.4f, 18.6f, 7.1f, 16.9f)
                 line(16.9f, 7.1f, 18.6f, 5.4f)
+            }
+            WizardGlyph.MOON -> {
+                // A crescent — full circle minus a smaller, offset circle (PathOperation.Difference),
+                // rather than an outline, to match the reference's solid glyphs (SUN, BOLT, ...).
+                val big = Path().apply { addOval(androidx.compose.ui.geometry.Rect(pt(4f, 3f), Size(15f * s, 15f * s))) }
+                val cut = Path().apply { addOval(androidx.compose.ui.geometry.Rect(pt(8.5f, 1.5f), Size(13f * s, 13f * s))) }
+                val moon = Path()
+                moon.op(big, cut, androidx.compose.ui.graphics.PathOperation.Difference)
+                drawPath(moon, tint, style = androidx.compose.ui.graphics.drawscope.Fill)
+            }
+            WizardGlyph.CHEVRON -> {
+                val chevron = Path().apply {
+                    moveTo(pt(6f, 9f).x, pt(6f, 9f).y)
+                    lineTo(pt(12f, 15f).x, pt(12f, 15f).y)
+                    lineTo(pt(18f, 9f).x, pt(18f, 9f).y)
+                }
+                drawPath(chevron, tint, style = stroke)
             }
             WizardGlyph.BOLT -> {
                 val bolt = Path().apply {

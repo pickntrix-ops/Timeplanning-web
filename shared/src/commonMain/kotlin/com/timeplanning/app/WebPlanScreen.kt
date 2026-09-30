@@ -81,6 +81,8 @@ fun WebPlanScreen(
     var savingFreeDays by remember { mutableStateOf(false) }
     var freeTimePercent by remember { mutableStateOf("30") }
     var freeTimePercentTick by remember { mutableStateOf(0) }
+    var preferWeekdays by remember { mutableStateOf(false) }
+    var savingPreferWeekdays by remember { mutableStateOf(false) }
 
     fun loadFieldsFrom(profile: DayProfile?) {
         wakeTime = profile?.wakeTime?.toShortTimeOrSelf() ?: ""
@@ -92,7 +94,7 @@ fun WebPlanScreen(
         lowStart = profile?.lowEnergyStart?.toShortTimeOrSelf() ?: ""
         lowEnd = profile?.lowEnergyEnd?.toShortTimeOrSelf() ?: ""
         commitments = profile?.fixedCommitments.orEmpty().mapIndexed { i, c ->
-            FixedCommitmentDraft(i, c.label, c.startTime.toShortTimeOrSelf(), c.endTime.toShortTimeOrSelf(), c.categoryId, c.subcategoryId)
+            FixedCommitmentDraft(i, c.label, c.startTime.toShortTimeOrSelf(), c.endTime.toShortTimeOrSelf(), c.categoryId, c.subcategoryId, parseDayCodes(c.daysOfWeek))
         }
         nextCommitmentId = commitments.size
     }
@@ -146,7 +148,7 @@ fun WebPlanScreen(
                         lowEnergyEnd = lowEnd.ifBlank { null },
                         fixedCommitments = commitments
                             .filter { it.label.isNotBlank() && it.startTime.isNotBlank() && it.endTime.isNotBlank() }
-                            .map { FixedCommitment(it.label, it.startTime, it.endTime, it.categoryId, it.subcategoryId) },
+                            .map { FixedCommitment(it.label, it.startTime, it.endTime, it.categoryId, it.subcategoryId, it.daysOfWeek.toDaysOfWeekParam(selectedDayType)) },
                     ),
                 )
             }.onSuccess { saved ->
@@ -177,14 +179,29 @@ fun WebPlanScreen(
         if (freeTimePercentTick == 0) return@LaunchedEffect
         delay(700)
         val pct = freeTimePercent.toIntOrNull() ?: return@LaunchedEffect
-        runCatching { apiClient.updatePlanPreferences(sessionToken, pct) }
+        runCatching { apiClient.updatePlanPreferences(sessionToken, freeTimePercent = pct) }
             .onFailure { error = "Couldn't save: ${it.serverMessage()}" }
+    }
+
+    fun togglePreferWeekdays(value: Boolean) {
+        val previous = preferWeekdays
+        preferWeekdays = value
+        savingPreferWeekdays = true
+        scope.launch {
+            runCatching { apiClient.updatePlanPreferences(sessionToken, preferWeekdays = value) }
+                .onSuccess { preferWeekdays = it.preferWeekdays }
+                .onFailure { preferWeekdays = previous; error = "Couldn't save: ${it.serverMessage()}" }
+            savingPreferWeekdays = false
+        }
     }
 
     LaunchedEffect(Unit) {
         runCatching { apiClient.fetchTaskCategories(sessionToken) }.onSuccess { categories = it }
         runCatching { apiClient.fetchFreeDays(sessionToken) }.onSuccess { freeDays = it }
-        runCatching { apiClient.fetchPlanPreferences(sessionToken) }.onSuccess { freeTimePercent = it.toString() }
+        runCatching { apiClient.fetchPlanPreferences(sessionToken) }.onSuccess {
+            freeTimePercent = it.freeTimePercent.toString()
+            preferWeekdays = it.preferWeekdays
+        }
         runCatching { apiClient.fetchDayProfiles(sessionToken) }
             .onSuccess { list ->
                 profiles = list.associateBy { it.dayType }
@@ -301,6 +318,35 @@ fun WebPlanScreen(
                             }
 
                             WebPlanCard(
+                                icon = WizardGlyph.CALENDAR,
+                                iconTint = PlanHeaderGreen,
+                                title = "Weekday vs weekend",
+                                description = "Where auto-scheduled tasks should land. \"Weekdays first\" only spills onto a weekend day once every weekday genuinely has no more room — good for keeping weekends quiet.",
+                            ) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    listOf(false to "Spread evenly", true to "Weekdays first").forEach { (value, label) ->
+                                        val selected = preferWeekdays == value
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(if (selected) PlanHeaderGreen else Color.White)
+                                                .border(1.dp, if (selected) PlanHeaderGreen else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                                                .clickable(enabled = !savingPreferWeekdays) { togglePreferWeekdays(value) }
+                                                .padding(vertical = 11.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                label,
+                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            WebPlanCard(
                                 icon = WizardGlyph.CLOCK,
                                 iconTint = PlanHeaderGreen,
                                 title = "Your routine",
@@ -398,6 +444,7 @@ fun WebPlanScreen(
                                 commitments.forEach { commitment ->
                                     WebFixedCommitmentRow(
                                         commitment = commitment,
+                                        dayType = selectedDayType,
                                         categories = categories,
                                         fieldColors = fieldColors,
                                         onChange = { updated -> commitments = commitments.map { if (it.id == commitment.id) updated else it }; markDirty() },
@@ -487,6 +534,7 @@ private fun WebPlanCard(
 @Composable
 private fun WebFixedCommitmentRow(
     commitment: FixedCommitmentDraft,
+    dayType: DayType,
     categories: List<TaskCategory>,
     fieldColors: androidx.compose.material3.TextFieldColors,
     onChange: (FixedCommitmentDraft) -> Unit,
@@ -539,6 +587,7 @@ private fun WebFixedCommitmentRow(
                 modifier = Modifier.weight(1f),
             )
         }
+        CommitmentDayPicker(dayType, commitment.daysOfWeek, PlanHeaderGreen) { onChange(commitment.copy(daysOfWeek = it)) }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box {
                 Row(

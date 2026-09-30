@@ -1,14 +1,31 @@
 package com.timeplanning.app
 
 import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.key
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,7 +54,9 @@ import kotlinx.coroutines.launch
 fun App() {
     val isWeb = remember { currentWebOrigin() != null }
 
-    MaterialTheme(colorScheme = if (isWeb) WebColorScheme else AppColorScheme) {
+    // The phone uses the web's palette and square style too (LocalWebStyle), so both look the same.
+    MaterialTheme(colorScheme = WebColorScheme) {
+    CompositionLocalProvider(LocalWebStyle provides true) {
         val apiClient = remember { ApiClient() }
         val sessionStore = rememberSessionStore()
         val scope = rememberCoroutineScope()
@@ -48,6 +67,17 @@ fun App() {
         var categoriesRefreshKey by remember { mutableStateOf(0) }
         // Where AddTask returns to — the Tasks tab's + button opens it too, not just Today's FAB.
         var addTaskReturn by remember { mutableStateOf<Screen>(Screen.Today) }
+        // Web only: the new/edit task form is a panel sliding in over the current page, not a screen of its own.
+        var taskPanelVisible by remember { mutableStateOf(false) }
+        var taskPanelEditing by remember { mutableStateOf<Task?>(null) }
+        var taskPanelKey by remember { mutableStateOf(0) }
+        /** Bumped after the panel saves, so the page underneath reloads and shows the change. */
+        var contentReloadKey by remember { mutableStateOf(0) }
+        fun openTaskPanel(editing: Task?) {
+            taskPanelEditing = editing
+            taskPanelKey++
+            taskPanelVisible = true
+        }
 
         LaunchedEffect(Unit) {
             // A token in the URL means the web OAuth redirect (see
@@ -60,7 +90,7 @@ fun App() {
             if (sessionToken != null) screen = Screen.Today
         }
 
-        if (!loadedStoredSession) return@MaterialTheme
+        if (!loadedStoredSession) return@CompositionLocalProvider
 
         fun onSelectTab(tab: BottomTab) {
             screen = when (tab) {
@@ -84,15 +114,28 @@ fun App() {
                 val token = sessionToken
                 if (token == null) {
                     screen = Screen.SignIn
-                } else {
-                    TodayScreen(
+                } else if (isWeb) {
+                    WebTodayScreen(
                         apiClient = apiClient,
                         sessionToken = token,
-                        currentTab = BottomTab.TODAY,
-                        onSelectTab = ::onSelectTab,
-                        onAddTask = { addTaskReturn = Screen.Today; screen = Screen.AddTask },
                         onOpenTask = { task, color -> screen = Screen.TaskDetail(task, color) },
                     )
+                } else {
+                    // The web's Today, stacked for a phone, with the usual bottom tab bar.
+                    Scaffold(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        bottomBar = { BottomNavBar(current = BottomTab.TODAY, onSelect = ::onSelectTab) },
+                    ) { padding ->
+                        Box(Modifier.padding(padding)) {
+                            WebTodayScreen(
+                                apiClient = apiClient,
+                                sessionToken = token,
+                                onOpenTask = { task, color -> screen = Screen.TaskDetail(task, color) },
+                                compact = true,
+                                onAddTask = { addTaskReturn = Screen.Today; screen = Screen.AddTask },
+                            )
+                        }
+                    }
                 }
             }
 
@@ -108,12 +151,15 @@ fun App() {
                         onCancel = { screen = addTaskReturn },
                     )
                 } else {
-                    AddTaskScreen(
-                        apiClient = apiClient,
-                        sessionToken = token,
-                        onDone = { categoriesRefreshKey++; screen = addTaskReturn },
-                        onCancel = { screen = addTaskReturn },
-                    )
+                    // Same form as the web's task panel, full screen.
+                    Box(Modifier.fillMaxSize().background(Color.White).safeDrawingPadding()) {
+                        WebAddTaskScreen(
+                            apiClient = apiClient,
+                            sessionToken = token,
+                            onDone = { categoriesRefreshKey++; screen = addTaskReturn },
+                            onCancel = { screen = addTaskReturn },
+                        )
+                    }
                 }
             }
 
@@ -130,13 +176,15 @@ fun App() {
                         onCancel = { screen = Screen.Today },
                     )
                 } else {
-                    AddTaskScreen(
-                        apiClient = apiClient,
-                        sessionToken = token,
-                        editingTask = current.task,
-                        onDone = { screen = Screen.Today },
-                        onCancel = { screen = Screen.Today },
-                    )
+                    Box(Modifier.fillMaxSize().background(Color.White).safeDrawingPadding()) {
+                        WebAddTaskScreen(
+                            apiClient = apiClient,
+                            sessionToken = token,
+                            editingTask = current.task,
+                            onDone = { categoriesRefreshKey++; screen = Screen.Today },
+                            onCancel = { screen = Screen.Today },
+                        )
+                    }
                 }
             }
 
@@ -151,7 +199,7 @@ fun App() {
                         task = current.task,
                         categoryColor = current.categoryColor,
                         onBack = { screen = Screen.Today },
-                        onEdit = { task -> screen = Screen.EditTask(task) },
+                        onEdit = { task -> openTaskPanel(task) },
                         onDeleted = { screen = Screen.Today },
                     )
                 } else {
@@ -171,13 +219,18 @@ fun App() {
                 val token = sessionToken
                 if (token == null) {
                     screen = Screen.SignIn
+                } else if (isWeb) {
+                    WebCalendarScreen(apiClient = apiClient, sessionToken = token)
                 } else {
-                    CalendarScreen(
-                        apiClient = apiClient,
-                        sessionToken = token,
-                        currentTab = BottomTab.CALENDAR,
-                        onSelectTab = ::onSelectTab,
-                    )
+                    // The web's week calendar, compact: two days on screen, swipe for the rest.
+                    Scaffold(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        bottomBar = { BottomNavBar(current = BottomTab.CALENDAR, onSelect = ::onSelectTab) },
+                    ) { padding ->
+                        Box(Modifier.padding(padding)) {
+                            WebCalendarScreen(apiClient = apiClient, sessionToken = token, compact = true)
+                        }
+                    }
                 }
             }
 
@@ -225,6 +278,7 @@ fun App() {
                         onOpenCategory = { category -> screen = Screen.CategoryDetail(category.id) },
                         onAddCategory = { screen = Screen.AddCategory },
                         onAddTask = { addTaskReturn = Screen.TaskCategories; screen = Screen.AddTask },
+                        onOpenTask = { task, color -> screen = Screen.TaskDetail(task, color) },
                         refreshKey = categoriesRefreshKey,
                     )
                 }
@@ -374,26 +428,94 @@ fun App() {
         val useWideWebLayout = isWeb && screen.let {
             it is Screen.TaskCategories || it is Screen.CategoryDetail || it is Screen.CategoryTasks ||
                 it is Screen.AddCategory || it is Screen.EditCategory || it is Screen.BulkAddTasks ||
-                it is Screen.AddTask || it is Screen.EditTask || it is Screen.TaskDetail || it is Screen.Plan
+                it is Screen.AddTask || it is Screen.EditTask || it is Screen.TaskDetail || it is Screen.Plan || it is Screen.Calendar || it is Screen.Today
         }
 
-        if (useWideWebLayout) {
-            content()
+        val webToken = sessionToken
+        if (isWeb && webToken != null && screen != Screen.SignIn) {
+            // Every signed-in web page sits beside the persistent sidebar (WebSidebar); the screens'
+            // own bottom bar / top nav hide themselves inside it (LocalInWebShell).
+            CompositionLocalProvider(LocalInWebShell provides true) {
+                Box(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxSize().background(WebColorScheme.background)) {
+                    WebSidebar(
+                        apiClient = apiClient,
+                        sessionToken = webToken,
+                        current = webTabFor(screen),
+                        refreshKey = categoriesRefreshKey,
+                        onSelect = ::onSelectTab,
+                        onNewTask = { openTaskPanel(null) },
+                        onOpenCategory = { screen = Screen.CategoryDetail(it) },
+                        onAddCategory = { screen = Screen.AddCategory },
+                        onSignOut = {
+                            sessionStore.clear()
+                            sessionToken = null
+                            screen = Screen.SignIn
+                        },
+                    )
+                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
+                        key(contentReloadKey) {
+                            if (useWideWebLayout) {
+                                content()
+                            } else {
+                                Box(Modifier.fillMaxHeight().widthIn(max = WebContentMaxWidth.dp).fillMaxWidth().padding(vertical = 16.dp)) { content() }
+                            }
+                        }
+                    }
+                }
+                // The task panel: a dimmed page and a white panel sliding in from the right.
+                AnimatedVisibility(visible = taskPanelVisible, enter = fadeIn(), exit = fadeOut()) {
+                    Box(
+                        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.22f))
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { taskPanelVisible = false },
+                    )
+                }
+                AnimatedVisibility(
+                    visible = taskPanelVisible,
+                    enter = slideInHorizontally(initialOffsetX = { it }),
+                    exit = slideOutHorizontally(targetOffsetX = { it }),
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                ) {
+                    Box(Modifier.fillMaxHeight().width(440.dp).shadow(24.dp)) {
+                        key(taskPanelKey) {
+                            WebAddTaskScreen(
+                                apiClient = apiClient,
+                                sessionToken = webToken,
+                                editingTask = taskPanelEditing,
+                                onDone = {
+                                    categoriesRefreshKey++
+                                    taskPanelVisible = false
+                                    // An edited task's detail page holds the old copy — go back to Today; otherwise refresh in place.
+                                    if (taskPanelEditing != null && screen is Screen.TaskDetail) screen = Screen.Today else contentReloadKey++
+                                },
+                                onCancel = { taskPanelVisible = false },
+                            )
+                        }
+                    }
+                }
+                }
+            }
         } else if (isWeb) {
             Box(
                 modifier = Modifier.fillMaxSize().background(WebColorScheme.background).padding(vertical = 32.dp),
                 contentAlignment = Alignment.TopCenter,
             ) {
-                Box(
-                    modifier = Modifier.fillMaxHeight().widthIn(max = WebContentMaxWidth.dp).fillMaxSize()
-                        .background(WebColorScheme.surface)
-                        .border(1.dp, WebColorScheme.outlineVariant),
-                ) {
-                    content()
-                }
+                Box(modifier = Modifier.fillMaxHeight().widthIn(max = WebContentMaxWidth.dp).fillMaxSize()) { content() }
             }
         } else {
             Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { content() }
         }
     }
+    }
+}
+
+/** Which sidebar row a web page belongs under — null for pages that aren't part of one section (adding/viewing a single task). */
+private fun webTabFor(screen: Screen): BottomTab? = when (screen) {
+    Screen.Today -> BottomTab.TODAY
+    Screen.Calendar -> BottomTab.CALENDAR
+    Screen.Plan -> BottomTab.PLAN
+    Screen.Account -> BottomTab.ACCOUNT
+    Screen.TaskCategories, is Screen.CategoryDetail, is Screen.CategoryTasks, Screen.AddCategory,
+    is Screen.EditCategory, is Screen.BulkAddTasks -> BottomTab.CATEGORIES
+    else -> null
 }
